@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<VBox spacing="15" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.valliento.controller.PurchaseController">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+    <HBox spacing="15" VBox.vgrow="ALWAYS">
+        <VBox spacing="10" styleClass="section-card" HBox.hgrow="ALWAYS">
+            <Label styleClass="section-title" text="All Purchase Orders" />
+            <TableView fx:id="purchaseTable" VBox.vgrow="ALWAYS">
+                <columns>
+                    <TableColumn fx:id="invoiceColumn" text="Invoice No" prefWidth="110" />
+                    <TableColumn fx:id="supplierColumn" text="Supplier" prefWidth="160" />
+                    <TableColumn fx:id="dateColumn" text="Date" prefWidth="100" />
+                    <TableColumn fx:id="amountColumn" text="Amount" prefWidth="100" />
+                    <TableColumn fx:id="statusColumn" text="Status" prefWidth="100" />
+                </columns>
+            </TableView>
+        </VBox>
+        <VBox spacing="12" styleClass="section-card" prefWidth="300">
+            <Label styleClass="section-title" text="Add / Edit Purchase Order" />
+            <Label text="Invoice No is auto-generated for new orders. To edit an existing order, click a row in the table or search by invoice no below." style="-fx-font-size: 11px; -fx-text-fill: #6b7280;" wrapText="true" />
+            <VBox spacing="4">
+                <Label text="Find Existing Order by Invoice No" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <HBox spacing="6">
+                    <TextField fx:id="invoiceSearchField" promptText="e.g. PUR-10001" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+                    <Button text="Find" onAction="#onFindByInvoice" />
+                </HBox>
+            </VBox>
+            <VBox spacing="4">
+                <Label text="Invoice No (auto-generated)" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <TextField fx:id="invoiceField" editable="false" />
+            </VBox>
+            <VBox spacing="4">
+                <Label text="Supplier" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <ComboBox fx:id="supplierComboBox" maxWidth="Infinity" />
+            </VBox>
+            <VBox spacing="4">
+                <Label text="Date" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <DatePicker fx:id="orderDatePicker" maxWidth="Infinity" />
+            </VBox>
+            <VBox spacing="4">
+                <Label text="Amount" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <TextField fx:id="amountField" promptText="e.g. 12450.00" />
+            </VBox>
+            <VBox spacing="4">
+                <Label text="Status" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+                <ComboBox fx:id="statusComboBox" maxWidth="Infinity" />
+            </VBox>
+            <HBox spacing="8">
+                <Button styleClass="btn-save" text="Add" onAction="#onAddOrder" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button styleClass="btn-hold" text="Update" onAction="#onUpdateOrder" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+            </HBox>
+            <HBox spacing="8">
+                <Button text="Delete" onAction="#onDeleteOrder" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button text="Clear" onAction="#onClear" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+            </HBox>
+        </VBox>
+    </HBox>
+</VBox>

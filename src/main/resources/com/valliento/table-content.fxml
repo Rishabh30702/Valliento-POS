@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.VBox?>
+<VBox spacing="15" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.valliento.controller.TableController">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+    <Label styleClass="section-title" text="Table Management" />
+    <Label text="Tap a table to cycle its status: Available to Occupied to Reserved to Cleaning to Available." style="-fx-font-size: 11px; -fx-text-fill: #6b7280;" />
+    <FlowPane fx:id="tableGrid" hgap="15" vgap="15" VBox.vgrow="ALWAYS" />
+</VBox>

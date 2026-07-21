@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.ScrollPane?>
+
+<ScrollPane fitToWidth="true" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.valliento.controller.DashboardController">
+    <VBox spacing="15">
+        <padding>
+            <Insets top="20" right="20" bottom="20" left="20" />
+        </padding>
+
+        <Label styleClass="section-title" text="Dashboard Overview" style="-fx-font-size: 20px;" />
+
+        <HBox spacing="15">
+            <VBox styleClass="stat-card" spacing="6" HBox.hgrow="ALWAYS">
+                <Label styleClass="stat-title" text="Today's Sales" />
+                <Label fx:id="todaysSalesLabel" styleClass="stat-value" text="₹0.00" />
+            </VBox>
+
+            <VBox styleClass="stat-card" spacing="6" HBox.hgrow="ALWAYS">
+                <Label styleClass="stat-title" text="Transactions" />
+                <Label fx:id="todaysTransactionsLabel" styleClass="stat-value" text="0 Transactions" />
+            </VBox>
+
+            <VBox styleClass="stat-card" spacing="6" HBox.hgrow="ALWAYS">
+                <Label styleClass="stat-title" text="Total Products" />
+                <Label fx:id="totalProductsLabel" styleClass="stat-value" text="0" />
+            </VBox>
+
+            <VBox styleClass="stat-card" spacing="6" HBox.hgrow="ALWAYS">
+                <Label styleClass="stat-title" text="Low Stock Items" />
+                <Label fx:id="lowStockLabel" styleClass="stat-value" text="0 Need Attention" />
+            </VBox>
+        </HBox>
+
+        <VBox styleClass="section-card" spacing="10">
+            <Label styleClass="section-title" text="Quick Note" />
+            <Label text="This dashboard pulls live data from your local SQLite database. Complete a sale on the Billing screen, then return here to see the numbers update." wrapText="true" />
+        </VBox>
+    </VBox>
+</ScrollPane>
