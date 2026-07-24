@@ -6,6 +6,7 @@
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.FlowPane?>
@@ -44,6 +45,14 @@
             <Label text="Table:" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
             <ComboBox fx:id="tableComboBox" promptText="Takeaway" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
         </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="Payment:" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+            <ComboBox fx:id="paymentMethodComboBox" promptText="Payment Method" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+        </HBox>
+
+        <CheckBox fx:id="interStateCheckBox" text="Inter-State Sale (IGST)" style="-fx-font-size: 12px;" />
+
         <TableView fx:id="cartTable" VBox.vgrow="ALWAYS">
             <columns>
                 <TableColumn fx:id="itemColumn" text="Item" prefWidth="150" />
@@ -54,10 +63,10 @@
         </TableView>
 
         <VBox spacing="2" alignment="CENTER_RIGHT">
-            <Label fx:id="subTotalLabel" text="Sub Total: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
-            <Label fx:id="cgstLabel" text="CGST (2.5%): Rs.0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
-            <Label fx:id="sgstLabel" text="SGST (2.5%): Rs.0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
-            <Label fx:id="totalLabel" styleClass="total-label" text="Total: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹0.00" />
+            <Label fx:id="subTotalLabel" text="Sub Total: Rs.0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
+            <Label fx:id="cgstLabel" text="CGST: Rs.0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
+            <Label fx:id="sgstLabel" text="SGST: Rs.0.00" style="-fx-font-size: 13px; -fx-text-fill: #6b7280;" />
+            <Label fx:id="totalLabel" styleClass="total-label" text="Total: Rs.0.00" />
         </VBox>
 
         <HBox spacing="10" alignment="CENTER">

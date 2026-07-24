@@ -2,9 +2,13 @@ package com.valliento.controller;
 
 import com.valliento.db.ProductDAO;
 import com.valliento.model.Product;
+import com.valliento.session.Session;
+import com.valliento.db.DatabaseManager;
+import com.valliento.db.DatabaseManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.concurrent.Task;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 
@@ -22,6 +26,10 @@ public class ProductsController {
     @FXML private TextField priceField;
     @FXML private TextField stockField;
     @FXML private ComboBox<String> gstComboBox;
+    @FXML private Button addButton;
+    @FXML private Button updateButton;
+    @FXML private Button deleteButton;
+    @FXML private Button clearButton;
 
     // Labels shown in the dropdown, in order. "GST Exempt" maps to 0.0.
     private static final String GST_EXEMPT_LABEL = "GST Exempt";
@@ -67,7 +75,7 @@ public class ProductsController {
     }
 
     private void loadProducts() {
-        products.setAll(ProductDAO.getAllProducts());
+        products.setAll(ProductDAO.getAllProducts(currentLocationId()));
     }
 
     @FXML
@@ -79,7 +87,8 @@ public class ProductsController {
             categoryField.getText().trim(),
             Double.parseDouble(priceField.getText().trim()),
             Integer.parseInt(stockField.getText().trim()),
-            labelToRate(gstComboBox.getValue())
+            labelToRate(gstComboBox.getValue()),
+            currentLocationId()
         );
 
         if (success) {
@@ -104,7 +113,8 @@ public class ProductsController {
             categoryField.getText().trim(),
             Double.parseDouble(priceField.getText().trim()),
             Integer.parseInt(stockField.getText().trim()),
-            labelToRate(gstComboBox.getValue())
+            labelToRate(gstComboBox.getValue()),
+            currentLocationId()
         );
 
         if (success) {
@@ -126,7 +136,7 @@ public class ProductsController {
             "Delete \"" + selectedProduct.getName() + "\"? This cannot be undone.");
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                ProductDAO.deleteProduct(selectedProduct.getId());
+                ProductDAO.deleteProduct(selectedProduct.getId(), currentLocationId());
                 loadProducts();
                 clearForm();
             }
@@ -183,6 +193,10 @@ public class ProductsController {
     private static double labelToRate(String label) {
         if (label == null || label.equals(GST_EXEMPT_LABEL)) return 0.0;
         return Double.parseDouble(label.replace("%", "").trim());
+    }
+
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : DatabaseManager.DEFAULT_LOCATION_ID;
     }
 
     private void showAlert(Alert.AlertType type, String message) {

@@ -1,117 +1,192 @@
 package com.valliento.db;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Properties;
 
 public class DatabaseManager {
 
-    private static final String DB_URL = "jdbc:sqlite:valliento.db";
+    private static final String DB_HOST;
+    private static final String DB_PORT;
+    private static final String DB_NAME;
+    private static final String DB_USER;
+    private static final String DB_PASSWORD;
+    private static final String DB_URL;
+
+    static {
+        Properties fileProps = loadConfigFile();
+
+        DB_HOST = resolve("DB_HOST", fileProps);
+        DB_PORT = resolve("DB_PORT", fileProps, "3306");
+        DB_NAME = resolve("DB_NAME", fileProps);
+        DB_USER = resolve("DB_USER", fileProps);
+        DB_PASSWORD = resolve("DB_PASSWORD", fileProps);
+
+        if (DB_HOST == null || DB_NAME == null || DB_USER == null || DB_PASSWORD == null) {
+            throw new IllegalStateException(
+                "Missing database configuration. Set DB_HOST, DB_NAME, DB_USER, and "
+                + "DB_PASSWORD as environment variables, or provide a db.properties "
+                + "file (see DatabaseManager.loadConfigFile() for the expected location)."
+            );
+        }
+
+        DB_URL = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME
+            + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    }
+
+    private static String resolve(String key, Properties fileProps) {
+        return resolve(key, fileProps, null);
+    }
+
+    private static String resolve(String key, Properties fileProps, String defaultValue) {
+        String envValue = System.getenv(key);
+        if (envValue != null && !envValue.isBlank()) {
+            return envValue;
+        }
+        String propValue = fileProps.getProperty(key);
+        if (propValue != null && !propValue.isBlank()) {
+            return propValue;
+        }
+        return defaultValue;
+    }
+
+    private static Properties loadConfigFile() {
+        Properties props = new Properties();
+        Path configPath = Path.of("db.properties");
+        if (Files.exists(configPath)) {
+            try (InputStream in = Files.newInputStream(configPath)) {
+                props.load(in);
+            } catch (IOException e) {
+                System.err.println("Warning: failed to read db.properties: " + e.getMessage());
+            }
+        }
+        return props;
+    }
+
     private static Connection connection;
 
     public static Connection getConnection() {
         try {
-            if (connection == null || connection.isClosed()) {
-                connection = DriverManager.getConnection(DB_URL);
+            if (connection == null || connection.isClosed() || !connection.isValid(2)) {
+                Class.forName("com.mysql.cj.jdbc.Driver");
+                connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
             }
-        } catch (SQLException e) {
+        } catch (SQLException | ClassNotFoundException e) {
             e.printStackTrace();
         }
         return connection;
     }
 
+    public static final int DEFAULT_LOCATION_ID = 1;
+
     public static void initializeSchema() {
+        String createLocations = """
+            CREATE TABLE IF NOT EXISTS locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                address VARCHAR(255),
+                phone VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        """;
+
         String createProducts = """
             CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                category TEXT NOT NULL,
-                price REAL NOT NULL,
-                stock INTEGER DEFAULT 0
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                category VARCHAR(255) NOT NULL,
+                price DOUBLE NOT NULL,
+                stock INT DEFAULT 0
+            ) ENGINE=InnoDB
         """;
 
         String createSales = """
             CREATE TABLE IF NOT EXISTS sales (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                invoice_no TEXT NOT NULL,
-                total REAL NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                invoice_no VARCHAR(100) NOT NULL,
+                total DOUBLE NOT NULL,
+               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
         """;
 
         String createSaleItems = """
             CREATE TABLE IF NOT EXISTS sale_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sale_id INTEGER NOT NULL,
-                product_name TEXT NOT NULL,
-                qty INTEGER NOT NULL,
-                price REAL NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sale_id INT NOT NULL,
+                product_name VARCHAR(255) NOT NULL,
+                qty INT NOT NULL,
+                price DOUBLE NOT NULL,
                 FOREIGN KEY (sale_id) REFERENCES sales(id)
-            )
+            ) ENGINE=InnoDB
         """;
 
         String createCustomers = """
             CREATE TABLE IF NOT EXISTS customers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT,
-                email TEXT,
-                total_purchase REAL DEFAULT 0,
-                points INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'Active'
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50),
+                email VARCHAR(255),
+                total_purchase DOUBLE DEFAULT 0,
+                points INT DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'Active'
+            ) ENGINE=InnoDB
         """;
 
         String createSettings = """
             CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
+                `key` VARCHAR(191) PRIMARY KEY,
                 value TEXT
-            )
+            ) ENGINE=InnoDB
         """;
 
         String createUsers = """
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL,
-                full_name TEXT NOT NULL,
-                role TEXT DEFAULT 'Cashier'
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(191) NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'Cashier'
+            ) ENGINE=InnoDB
         """;
 
         String createSuppliers = """
             CREATE TABLE IF NOT EXISTS suppliers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT,
-                email TEXT,
-                total_purchase REAL DEFAULT 0,
-                status TEXT DEFAULT 'Active'
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50),
+                email VARCHAR(255),
+                total_purchase DOUBLE DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'Active'
+            ) ENGINE=InnoDB
         """;
 
         String createExpenses = """
             CREATE TABLE IF NOT EXISTS expenses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                expense_type TEXT NOT NULL,
-                amount REAL NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                expense_type VARCHAR(255) NOT NULL,
+                amount DOUBLE NOT NULL,
                 note TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
         """;
 
         String createEmployees = """
             CREATE TABLE IF NOT EXISTS employees (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                role TEXT NOT NULL,
-                phone TEXT,
-                status TEXT DEFAULT 'Active'
-            )
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                role VARCHAR(100) NOT NULL,
+                phone VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'Active'
+            ) ENGINE=InnoDB
         """;
 
         try (Statement stmt = getConnection().createStatement()) {
+            stmt.execute(createLocations);
             stmt.execute(createProducts);
             stmt.execute(createSales);
             stmt.execute(createSaleItems);
@@ -120,76 +195,96 @@ public class DatabaseManager {
 
             String createPurchaseOrders = """
                 CREATE TABLE IF NOT EXISTS purchase_orders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    invoice_no TEXT NOT NULL,
-                    supplier_id INTEGER NOT NULL,
-                    supplier_name TEXT NOT NULL,
-                    order_date TEXT NOT NULL,
-                    amount REAL NOT NULL,
-                    status TEXT DEFAULT 'Pending'
-                )
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    invoice_no VARCHAR(100) NOT NULL,
+                    supplier_id INT NOT NULL,
+                    supplier_name VARCHAR(255) NOT NULL,
+                    order_date VARCHAR(50) NOT NULL,
+                    amount DOUBLE NOT NULL,
+                    status VARCHAR(50) DEFAULT 'Pending'
+                ) ENGINE=InnoDB
             """;
             stmt.execute(createPurchaseOrders);
 
             String createRestaurantTables = """
                 CREATE TABLE IF NOT EXISTS restaurant_tables (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    table_no TEXT NOT NULL UNIQUE,
-                    status TEXT DEFAULT 'Available'
-                )
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    table_no VARCHAR(50) NOT NULL,
+                    status VARCHAR(50) DEFAULT 'Available'
+                ) ENGINE=InnoDB
             """;
             stmt.execute(createRestaurantTables);
 
             String createKotOrders = """
                 CREATE TABLE IF NOT EXISTS kot_orders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    kot_no TEXT NOT NULL,
-                    table_id INTEGER,
-                    table_no TEXT,
-                    status TEXT DEFAULT 'New',
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-                )
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    kot_no VARCHAR(100) NOT NULL,
+                    table_id INT,
+                    table_no VARCHAR(50),
+                    status VARCHAR(50) DEFAULT 'New',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
             """;
             stmt.execute(createKotOrders);
 
             String createKotItems = """
                 CREATE TABLE IF NOT EXISTS kot_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    kot_id INTEGER NOT NULL,
-                    product_name TEXT NOT NULL,
-                    qty INTEGER NOT NULL,
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    kot_id INT NOT NULL,
+                    product_name VARCHAR(255) NOT NULL,
+                    qty INT NOT NULL,
                     FOREIGN KEY (kot_id) REFERENCES kot_orders(id)
-                )
+                ) ENGINE=InnoDB
             """;
             stmt.execute(createKotItems);
 
             String createDailyClosings = """
                 CREATE TABLE IF NOT EXISTS daily_closings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    closing_date TEXT NOT NULL UNIQUE,
-                    total_sales REAL NOT NULL,
-                    total_transactions INTEGER NOT NULL,
-                    total_expenses REAL NOT NULL,
-                    net_sales REAL NOT NULL,
-                    closed_by TEXT,
-                    closed_at TEXT DEFAULT CURRENT_TIMESTAMP
-                )
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    closing_date VARCHAR(20) NOT NULL,
+                    total_sales DOUBLE NOT NULL,
+                    total_transactions INT NOT NULL,
+                    total_expenses DOUBLE NOT NULL,
+                    net_sales DOUBLE NOT NULL,
+                    closed_by VARCHAR(255),
+                    closed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
             """;
             stmt.execute(createDailyClosings);
-            seedTablesIfEmpty();
+
             stmt.execute(createUsers);
             stmt.execute(createSuppliers);
             stmt.execute(createExpenses);
             stmt.execute(createEmployees);
+
+            seedDefaultLocation();
+            seedTablesIfEmpty();
             seedDefaultUser();
             seedRoleDemoAccounts();
 
-            seedProductsIfEmpty();
             migrateSalesTable();
             migrateProductsTable();
             migrateSaleItemsTable();
+            migrateLocationColumns();
+            migrateUsersTable();
+            SettingsDAO.seedDefaultsIfMissing();
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void seedDefaultLocation() throws SQLException {
+        String countSql = "SELECT COUNT(*) FROM locations";
+        try (Statement stmt = getConnection().createStatement();
+             ResultSet rs = stmt.executeQuery(countSql)) {
+            if (rs.next() && rs.getInt(1) == 0) {
+                String insert = "INSERT INTO locations (id, name) VALUES (?, ?)";
+                try (PreparedStatement ps = getConnection().prepareStatement(insert)) {
+                    ps.setInt(1, DEFAULT_LOCATION_ID);
+                    ps.setString(2, "Main Location");
+                    ps.executeUpdate();
+                }
+            }
         }
     }
 
@@ -210,59 +305,39 @@ public class DatabaseManager {
         }
     }
 
-    private static void seedProductsIfEmpty() throws SQLException {
-        String countSql = "SELECT COUNT(*) FROM products";
-        try (Statement stmt = getConnection().createStatement();
-             ResultSet rs = stmt.executeQuery(countSql)) {
-            if (rs.next() && rs.getInt(1) == 0) {
-                String insert = "INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)";
-                try (PreparedStatement ps = getConnection().prepareStatement(insert)) {
-                    Object[][] seedData = {
-                        {"Cappuccino", "Beverages", 120.00, 45},
-                        {"Chocolate Pastry", "Pastries", 90.00, 28},
-                        {"Veg Sandwich", "Snacks", 80.00, 32},
-                        {"French Fries", "Snacks", 120.00, 25},
-                        {"Cold Coffee", "Beverages", 110.00, 18},
-                        {"Brownie", "Pastries", 70.00, 10},
-                        {"Veg Burger", "Combo", 130.00, 15}
-                    };
-                    for (Object[] row : seedData) {
-                        ps.setString(1, (String) row[0]);
-                        ps.setString(2, (String) row[1]);
-                        ps.setDouble(3, (Double) row[2]);
-                        ps.setInt(4, (Integer) row[3]);
-                        ps.executeUpdate();
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Ensures demo Manager / Cashier / Waiter accounts exist, even on databases
-     * created before role-based login was added. Safe to run on every startup -
-     * uses INSERT OR IGNORE so it never duplicates or overwrites existing users.
-     */
     private static void seedRoleDemoAccounts() throws SQLException {
-        String insert = "INSERT OR IGNORE INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)";
+        String insert = "INSERT IGNORE INTO users (username, password, full_name, role, location_id) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = getConnection().prepareStatement(insert)) {
             ps.setString(1, "manager");
             ps.setString(2, "manager123");
             ps.setString(3, "Manager User");
             ps.setString(4, "Manager");
+            ps.setInt(5, DEFAULT_LOCATION_ID);
             ps.executeUpdate();
 
             ps.setString(1, "cashier");
             ps.setString(2, "cashier123");
             ps.setString(3, "Cashier User");
             ps.setString(4, "Cashier");
+            ps.setInt(5, DEFAULT_LOCATION_ID);
             ps.executeUpdate();
 
             ps.setString(1, "waiter");
             ps.setString(2, "waiter123");
             ps.setString(3, "Waiter User");
             ps.setString(4, "Waiter");
+            ps.setInt(5, DEFAULT_LOCATION_ID);
             ps.executeUpdate();
+
+            ps.setString(1, "cashier2");
+            ps.setString(2, "cashier1234");
+            ps.setString(3, "Cashier User 2");
+            ps.setString(4, "Cashier");
+            ps.setInt(5, DEFAULT_LOCATION_ID);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            // location_id may not exist yet on first pass - safe to skip, next
+            // startup after migration succeeds will pick this up.
         }
     }
 
@@ -273,28 +348,24 @@ public class DatabaseManager {
             if (rs.next() && rs.getInt(1) == 0) {
                 String insert = "INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ps = getConnection().prepareStatement(insert)) {
-                    // Administrator - full access to everything
                     ps.setString(1, "admin");
                     ps.setString(2, "admin123");
                     ps.setString(3, "Aman Gia");
                     ps.setString(4, "Administrator");
                     ps.executeUpdate();
 
-                    // Manager - products, inventory, purchase, employees, suppliers, expenses, reports
                     ps.setString(1, "manager");
                     ps.setString(2, "manager123");
                     ps.setString(3, "Manager User");
                     ps.setString(4, "Manager");
                     ps.executeUpdate();
 
-                    // Cashier - billing / invoice generation
                     ps.setString(1, "cashier");
                     ps.setString(2, "cashier123");
                     ps.setString(3, "Cashier User");
                     ps.setString(4, "Cashier");
                     ps.executeUpdate();
 
-                    // Waiter - table management + KOT
                     ps.setString(1, "waiter");
                     ps.setString(2, "waiter123");
                     ps.setString(3, "Waiter User");
@@ -306,52 +377,52 @@ public class DatabaseManager {
     }
 
     private static void migrateSalesTable() {
-        // SQLite has no "ADD COLUMN IF NOT EXISTS" - try each, ignore error if column already exists.
-        // Column names here must match exactly what SaleDAO.recordSale() inserts into ("tax"),
-        // otherwise inserts fail at runtime with "no such column" even though this migration
-        // itself runs without error (it would just have added a differently-named column).
-        tryAlter("ALTER TABLE sales ADD COLUMN cashier_name TEXT DEFAULT 'Unknown'");
-        tryAlter("ALTER TABLE sales ADD COLUMN shift TEXT DEFAULT 'Day'");
-        tryAlter("ALTER TABLE sales ADD COLUMN tax REAL DEFAULT 0");
-        // Inter-state (IGST) vs intra-state (CGST+SGST) support.
-        tryAlter("ALTER TABLE sales ADD COLUMN sale_type TEXT DEFAULT 'Intra-State'");
-        tryAlter("ALTER TABLE sales ADD COLUMN cgst_amount REAL DEFAULT 0");
-        tryAlter("ALTER TABLE sales ADD COLUMN sgst_amount REAL DEFAULT 0");
-        tryAlter("ALTER TABLE sales ADD COLUMN igst_amount REAL DEFAULT 0");
+        tryAlter("ALTER TABLE sales ADD COLUMN cashier_name VARCHAR(255) DEFAULT 'Unknown'");
+        tryAlter("ALTER TABLE sales ADD COLUMN shift VARCHAR(50) DEFAULT 'Day'");
+        tryAlter("ALTER TABLE sales ADD COLUMN tax DOUBLE DEFAULT 0");
+        tryAlter("ALTER TABLE sales ADD COLUMN sale_type VARCHAR(50) DEFAULT 'Intra-State'");
+        tryAlter("ALTER TABLE sales ADD COLUMN cgst_amount DOUBLE DEFAULT 0");
+        tryAlter("ALTER TABLE sales ADD COLUMN sgst_amount DOUBLE DEFAULT 0");
+        tryAlter("ALTER TABLE sales ADD COLUMN igst_amount DOUBLE DEFAULT 0");
+        tryAlter("ALTER TABLE sales ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'");
     }
 
-    /**
-     * Adds the GST rate column to products for databases created before GST
-     * support existed. gst_rate stores the percentage (5, 12, 18, 20...).
-     * A value of 0 means "GST Exempt" (no tax charged on that product).
-     */
     private static void migrateProductsTable() {
-        tryAlter("ALTER TABLE products ADD COLUMN gst_rate REAL DEFAULT 5");
+        tryAlter("ALTER TABLE products ADD COLUMN gst_rate DOUBLE DEFAULT 5");
     }
 
-    /**
-     * Records the GST rate/amount that applied to each sold line item, for GST reporting/audit.
-     * Column names here must match exactly what SaleDAO.recordSale() inserts into
-     * ("gst_rate", "gst_amount").
-     */
     private static void migrateSaleItemsTable() {
-        tryAlter("ALTER TABLE sale_items ADD COLUMN gst_rate REAL DEFAULT 0");
-        tryAlter("ALTER TABLE sale_items ADD COLUMN gst_amount REAL DEFAULT 0");
+        tryAlter("ALTER TABLE sale_items ADD COLUMN gst_rate DOUBLE DEFAULT 0");
+        tryAlter("ALTER TABLE sale_items ADD COLUMN gst_amount DOUBLE DEFAULT 0");
+    }
+
+    private static void migrateLocationColumns() {
+        tryAlter("ALTER TABLE products ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE sales ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE customers ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE suppliers ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE expenses ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE employees ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE purchase_orders ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE restaurant_tables ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE kot_orders ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE daily_closings ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+    }
+
+    private static void migrateUsersTable() {
+        tryAlter("ALTER TABLE users ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
+        tryAlter("ALTER TABLE users DROP INDEX username");
+        tryAlter("ALTER TABLE users ADD UNIQUE KEY uniq_username_per_location (username, location_id)");
     }
 
     private static void tryAlter(String sql) {
         try (Statement stmt = getConnection().createStatement()) {
             stmt.execute(sql);
         } catch (SQLException e) {
-            // Column likely already exists - safe to ignore
+            // Column/index likely already exists, or doesn't exist to drop - safe to ignore
         }
     }
 
-    /**
-     * Current local date/time as a string, for created_at-style columns.
-     * SQLite's own CURRENT_TIMESTAMP default is UTC, which shows the wrong
-     * day/time for local users - this gives the machine's local time instead.
-     */
     public static String nowLocal() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }

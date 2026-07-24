@@ -4,12 +4,15 @@ import java.sql.*;
 
 public class SettingsDAO {
 
-    public static String getSetting(String key, String defaultValue) {
+    public static String get(String key, String defaultValue) {
         String sql = "SELECT value FROM settings WHERE key = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, key);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getString("value");
+                if (rs.next()) {
+                    String val = rs.getString("value");
+                    return (val == null || val.isBlank()) ? defaultValue : val;
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -17,17 +20,40 @@ public class SettingsDAO {
         return defaultValue;
     }
 
-    public static boolean saveSetting(String key, String value) {
+    public static String getSetting(String key, String defaultValue) {
+        return get(key, defaultValue);
+    }
+
+    public static void set(String key, String value) {
         String sql = "INSERT INTO settings (key, value) VALUES (?, ?) " +
                      "ON CONFLICT(key) DO UPDATE SET value = excluded.value";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, key);
             ps.setString(2, value);
             ps.executeUpdate();
-            return true;
         } catch (SQLException e) {
             e.printStackTrace();
-            return false;
+        }
+    }
+
+    public static void saveSetting(String key, String value) {
+        set(key, value);
+    }
+
+    public static void seedDefaultsIfMissing() {
+        seedIfMissing("upi_id", "valliento.demo@upi");
+        seedIfMissing("merchant_name", "Valliento POS");
+        seedIfMissing("merchant_phone", "9999999999");
+    }
+
+    private static void seedIfMissing(String key, String defaultValue) {
+        String sql = "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, key);
+            ps.setString(2, defaultValue);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 }

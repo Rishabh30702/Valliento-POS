@@ -2,6 +2,8 @@ package com.valliento.controller;
 
 import com.valliento.db.ProductDAO;
 import com.valliento.model.Product;
+import com.valliento.session.Session;
+import com.valliento.db.DatabaseManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -60,8 +62,12 @@ public class InventoryController {
         loadInventory();
     }
 
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
     private void loadInventory() {
-        allProducts.setAll(ProductDAO.getAllProducts());
+        allProducts.setAll(ProductDAO.getAllProducts(currentLocationId()));
         totalItemsLabel.setText(String.valueOf(allProducts.size()));
         long lowStockCount = allProducts.stream().filter(p -> p.getStock() < LOW_STOCK_THRESHOLD).count();
         lowStockCountLabel.setText(String.valueOf(lowStockCount));
@@ -105,7 +111,7 @@ public class InventoryController {
             return;
         }
 
-        ProductDAO.adjustStock(selectedProduct.getId(), change);
+        ProductDAO.adjustStock(selectedProduct.getId(), change, currentLocationId());
         adjustAmountField.clear();
         loadInventory();
     }

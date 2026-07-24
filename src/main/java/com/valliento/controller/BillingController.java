@@ -2,10 +2,12 @@ package com.valliento.controller;
 
 import com.valliento.db.ProductDAO;
 import com.valliento.db.SaleDAO;
+import com.valliento.db.SettingsDAO;
 import com.valliento.model.CartItem;
 import com.valliento.model.Product;
 import com.valliento.session.Session;
 import com.valliento.printer.ReceiptPrinter;
+import com.valliento.printer.UpiQrGenerator;
 import com.valliento.db.KotDAO;
 import com.valliento.db.TableDAO;
 import com.valliento.model.KotItem;
@@ -17,10 +19,17 @@ import java.util.Optional;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 import java.util.List;
 
@@ -39,13 +48,13 @@ public class BillingController {
     @FXML private FlowPane productGrid;
     @FXML private ComboBox<RestaurantTable> tableComboBox;
 
-    // NEW: toggle between Intra-State (CGST+SGST) and Inter-State (IGST).
-    // Add a <CheckBox fx:id="interStateCheckBox" text="Inter-State Sale (IGST)" />
-    // to billing-content.fxml near the Table selector for this to bind.
     @FXML private CheckBox interStateCheckBox;
+    @FXML private ComboBox<String> paymentMethodComboBox;
+
+    private static final ObservableList<String> PAYMENT_METHODS =
+        FXCollections.observableArrayList("---", "Cash", "Card", "UPI");
 
     private final ObservableList<CartItem> cartItems = FXCollections.observableArrayList();
-    // GST is now per-product (set on the Products page) instead of one flat rate here.
 
     private Integer currentKotId = null;
     private boolean suppressTableSelectionHandling = false;
@@ -64,6 +73,11 @@ public class BillingController {
             cashierLabel.setText("Cashier: Unknown");
         }
 
+        if (paymentMethodComboBox != null) {
+            paymentMethodComboBox.setItems(PAYMENT_METHODS);
+            paymentMethodComboBox.getSelectionModel().select("---");
+        }
+
         loadProductsFromDatabase();
         loadTables();
         updateTotals();
@@ -78,13 +92,24 @@ public class BillingController {
         });
     }
 
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : com.valliento.db.DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
     private boolean isInterState() {
         return interStateCheckBox != null && interStateCheckBox.isSelected();
     }
 
+    private String selectedPaymentMethod() {
+        if (paymentMethodComboBox == null || paymentMethodComboBox.getValue() == null) {
+            return "---";
+        }
+        return paymentMethodComboBox.getValue();
+    }
+
     private void loadProductsFromDatabase() {
         productGrid.getChildren().clear();
-        List<Product> products = ProductDAO.getAllProducts();
+        List<Product> products = ProductDAO.getAllProducts(currentLocationId());
         for (Product p : products) {
             VBox tile = new VBox(4);
             tile.getStyleClass().add("product-tile");
@@ -123,16 +148,17 @@ public class BillingController {
 
         subTotalLabel.setText(String.format("Sub Total: \u20B9%.2f", subTotal));
 
+        double effectiveRate = subTotal > 0 ? (tax / subTotal) * 100.0 : 0.0;
+
         if (isInterState()) {
-            // Inter-state: full tax charged as IGST, no CGST/SGST split.
-            cgstLabel.setText(String.format("IGST: \u20B9%.2f", tax));
+            cgstLabel.setText(String.format("IGST (%.1f%%): \u20B9%.2f", effectiveRate, tax));
             sgstLabel.setText("SGST: \u20B90.00");
         } else {
-            // Intra-state: split the total tax evenly into CGST + SGST.
+            double halfRate = effectiveRate / 2.0;
             double cgst = tax / 2;
             double sgst = tax / 2;
-            cgstLabel.setText(String.format("CGST: \u20B9%.2f", cgst));
-            sgstLabel.setText(String.format("SGST: \u20B9%.2f", sgst));
+            cgstLabel.setText(String.format("CGST (%.1f%%): \u20B9%.2f", halfRate, cgst));
+            sgstLabel.setText(String.format("SGST (%.1f%%): \u20B9%.2f", halfRate, sgst));
         }
 
         totalLabel.setText(String.format("Total: \u20B9%.2f", grandTotal));
@@ -186,7 +212,7 @@ public class BillingController {
             if (activeKot != null) {
                 currentKotId = activeKot.getId();
                 List<KotItem> items = KotDAO.getItemsForKot(activeKot.getId());
-                List<Product> allProducts = ProductDAO.getAllProducts();
+                List<Product> allProducts = ProductDAO.getAllProducts(currentLocationId());
                 for (KotItem item : items) {
                     double price = 0.0;
                     double gstRate = 5.0;
@@ -275,13 +301,21 @@ public class BillingController {
         double tax = cartItems.stream().mapToDouble(CartItem::getGstAmount).sum();
         double grandTotal = subTotal + tax;
         boolean interState = isInterState();
-
+        String paymentMethod = selectedPaymentMethod();
         String invoiceNo = SaleDAO.generateNextInvoiceNo();
+
+        if ("UPI".equals(paymentMethod)) {
+            boolean confirmed = showUpiQrDialog(invoiceNo, grandTotal);
+            if (!confirmed) {
+                return;
+            }
+        }
+
         String cashierName = Session.getCurrentUser() != null ? Session.getCurrentUser().getFullName() : "Unknown";
 
-        SaleDAO.recordSale(invoiceNo, grandTotal, tax, cartItems, cashierName, interState);
+        SaleDAO.recordSale(invoiceNo, grandTotal, tax, cartItems, cashierName, interState, paymentMethod);
 
-        ReceiptPrinter.printReceipt(invoiceNo, cashierName, cartItems, subTotal, tax, grandTotal, interState);
+        ReceiptPrinter.printReceipt(invoiceNo, cashierName, cartItems, subTotal, tax, grandTotal, interState, paymentMethod);
 
         RestaurantTable selectedTable = tableComboBox.getValue();
         if (selectedTable != null) {
@@ -299,7 +333,63 @@ public class BillingController {
         if (interStateCheckBox != null) {
             interStateCheckBox.setSelected(false);
         }
+        if (paymentMethodComboBox != null) {
+            paymentMethodComboBox.getSelectionModel().select("---");
+        }
         updateTotals();
         loadTables();
+    }
+
+    private boolean showUpiQrDialog(String invoiceNo, double amount) {
+        String upiId = SettingsDAO.get("upi_id", "valliento.demo@upi");
+        String merchantName = SettingsDAO.get("merchant_name", "Valliento POS");
+
+        Image qrImage = UpiQrGenerator.generateUpiQr(upiId, merchantName, amount, "Invoice " + invoiceNo, 260);
+
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Scan to Pay - UPI");
+
+        VBox root = new VBox(12);
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(20));
+
+        Label heading = new Label("Scan with any UPI app to pay");
+        heading.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        ImageView qrView = new ImageView(qrImage);
+        qrView.setFitWidth(220);
+        qrView.setFitHeight(220);
+
+        Label amountLabel = new Label(String.format("Amount: \u20B9%.2f", amount));
+        amountLabel.setStyle("-fx-font-size: 13px;");
+
+        Label upiIdLabel = new Label("Paying to: " + upiId);
+        upiIdLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #6b7280;");
+
+        Button confirmBtn = new Button("Payment Received");
+        confirmBtn.setStyle("-fx-background-color: #16a34a; -fx-text-fill: white; -fx-font-weight: bold;");
+
+        Button cancelBtn = new Button("Cancel");
+
+        final boolean[] result = {false};
+        confirmBtn.setOnAction(e -> {
+            result[0] = true;
+            dialog.close();
+        });
+        cancelBtn.setOnAction(e -> {
+            result[0] = false;
+            dialog.close();
+        });
+
+        javafx.scene.layout.HBox buttonRow = new javafx.scene.layout.HBox(10, confirmBtn, cancelBtn);
+        buttonRow.setAlignment(Pos.CENTER);
+
+        root.getChildren().addAll(heading, qrView, amountLabel, upiIdLabel, buttonRow);
+
+        dialog.setScene(new Scene(root, 320, 400));
+        dialog.showAndWait();
+
+        return result[0];
     }
 }

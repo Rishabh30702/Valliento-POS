@@ -24,12 +24,18 @@ public class ReceiptPrinter {
 
     public static void printReceipt(String invoiceNo, String cashierName, List<CartItem> items,
                                      double subTotal, double tax, double grandTotal) {
-        printReceipt(invoiceNo, cashierName, items, subTotal, tax, grandTotal, false);
+        printReceipt(invoiceNo, cashierName, items, subTotal, tax, grandTotal, false, "Cash");
     }
 
     public static void printReceipt(String invoiceNo, String cashierName, List<CartItem> items,
                                      double subTotal, double tax, double grandTotal,
                                      boolean isInterState) {
+        printReceipt(invoiceNo, cashierName, items, subTotal, tax, grandTotal, isInterState, "Cash");
+    }
+
+    public static void printReceipt(String invoiceNo, String cashierName, List<CartItem> items,
+                                     double subTotal, double tax, double grandTotal,
+                                     boolean isInterState, String paymentMethod) {
 
         PrinterJob job = PrinterJob.createPrinterJob();
         if (job == null) {
@@ -42,7 +48,8 @@ public class ReceiptPrinter {
             return;
         }
 
-        VBox receipt = buildReceiptLayout(invoiceNo, cashierName, items, subTotal, tax, grandTotal, isInterState);
+        VBox receipt = buildReceiptLayout(invoiceNo, cashierName, items, subTotal, tax, grandTotal, isInterState, paymentMethod);
+
         receipt.setPrefWidth(226);
 
         boolean printed = job.printPage(receipt);
@@ -56,7 +63,7 @@ public class ReceiptPrinter {
 
     private static VBox buildReceiptLayout(String invoiceNo, String cashierName, List<CartItem> items,
                                             double subTotal, double tax, double grandTotal,
-                                            boolean isInterState) {
+                                            boolean isInterState, String paymentMethod) {
         VBox box = new VBox(4);
         box.setStyle("-fx-padding: 10;");
         box.setAlignment(Pos.CENTER);
@@ -86,10 +93,13 @@ public class ReceiptPrinter {
         Text saleTypeLine = new Text("Sale Type: " + (isInterState ? "Inter-State (IGST)" : "Intra-State (CGST+SGST)"));
         saleTypeLine.setFont(Font.font("Monospaced", 8));
 
+        Text paymentLine = new Text("Payment: " + (paymentMethod == null || paymentMethod.isBlank() || paymentMethod.equals("---") ? "--" : paymentMethod));
+        paymentLine.setFont(Font.font("Monospaced", 8));
+
         Text divider = new Text("--------------------------------");
         divider.setFont(Font.font("Monospaced", 9));
 
-        box.getChildren().addAll(title, subtitle, invoiceLine, dateLine, cashierLine, saleTypeLine, divider);
+        box.getChildren().addAll(title, subtitle, invoiceLine, dateLine, cashierLine, saleTypeLine, paymentLine, divider);
 
         for (CartItem item : items) {
             String line = String.format("%-16s x%-2d %8.2f",
@@ -130,17 +140,21 @@ public class ReceiptPrinter {
             totalGst += gstAmt;
 
             if (isInterState) {
-                Text rateLine = new Text(String.format("%-20s %10.2f", "IGST %", gstAmt));
+                String label = String.format("IGST @ %.1f%%", rate);
+                Text rateLine = new Text(String.format("%-20s %10.2f", label, gstAmt));
                 rateLine.setFont(Font.font("Monospaced", 9));
                 box.getChildren().add(rateLine);
             } else {
+                double halfRate = rate / 2.0;
                 double halfAmt = gstAmt / 2.0;
 
-                Text cgstLine = new Text(String.format("%-20s %10.2f", "CGST %", halfAmt));
+                String cgstLabel = String.format("CGST @ %.1f%%", halfRate);
+                Text cgstLine = new Text(String.format("%-20s %10.2f", cgstLabel, halfAmt));
                 cgstLine.setFont(Font.font("Monospaced", 9));
                 box.getChildren().add(cgstLine);
 
-                Text sgstLine = new Text(String.format("%-20s %10.2f", "SGST %", halfAmt));
+                String sgstLabel = String.format("SGST @ %.1f%%", halfRate);
+                Text sgstLine = new Text(String.format("%-20s %10.2f", sgstLabel, halfAmt));
                 sgstLine.setFont(Font.font("Monospaced", 9));
                 box.getChildren().add(sgstLine);
             }
