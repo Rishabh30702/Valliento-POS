@@ -82,6 +82,7 @@ public class DatabaseManager {
         return connection;
     }
 
+    /** The location_id assigned to all pre-existing/demo data and demo accounts. */
     public static final int DEFAULT_LOCATION_ID = 1;
 
     public static void initializeSchema() {
@@ -144,6 +145,9 @@ public class DatabaseManager {
             ) ENGINE=InnoDB
         """;
 
+        // NOTE: username uniqueness is now per-location (added via migration below),
+        // not global - see migrateUsersTable(). This lets Location A and Location B
+        // each have their own "cashier1" without colliding.
         String createUsers = """
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -267,12 +271,18 @@ public class DatabaseManager {
             migrateSaleItemsTable();
             migrateLocationColumns();
             migrateUsersTable();
+            migrateSubscriptionColumns();
             SettingsDAO.seedDefaultsIfMissing();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Ensures a "Main Location" exists with id = DEFAULT_LOCATION_ID (1), so all
+     * existing/demo data has somewhere to belong. New locations (e.g. "Agra
+     * Location 2") get created later via LocationDAO.createLocation(...).
+     */
     private static void seedDefaultLocation() throws SQLException {
         String countSql = "SELECT COUNT(*) FROM locations";
         try (Statement stmt = getConnection().createStatement();
@@ -305,6 +315,13 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * Ensures demo Manager / Cashier / Waiter accounts exist for the Main Location,
+     * even on databases created before role-based login was added. Safe to run on
+     * every startup - uses INSERT IGNORE, keyed off the composite
+     * (username, location_id) uniqueness added in migrateUsersTable(), so it
+     * never duplicates or overwrites existing users.
+     */
     private static void seedRoleDemoAccounts() throws SQLException {
         String insert = "INSERT IGNORE INTO users (username, password, full_name, role, location_id) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = getConnection().prepareStatement(insert)) {
@@ -336,8 +353,9 @@ public class DatabaseManager {
             ps.setInt(5, DEFAULT_LOCATION_ID);
             ps.executeUpdate();
         } catch (SQLException e) {
-            // location_id may not exist yet on first pass - safe to skip, next
-            // startup after migration succeeds will pick this up.
+            // If this runs before migrateUsersTable() has added location_id on an
+            // upgrade path, location_id won't exist yet - safe to skip this pass;
+            // it'll succeed on the next app startup after migration has run once.
         }
     }
 
@@ -396,6 +414,13 @@ public class DatabaseManager {
         tryAlter("ALTER TABLE sale_items ADD COLUMN gst_amount DOUBLE DEFAULT 0");
     }
 
+    /**
+     * Adds location_id to every top-level business-data table, defaulting all
+     * existing rows to DEFAULT_LOCATION_ID (Main Location) so nothing already
+     * in the database becomes orphaned. sale_items and kot_items don't need
+     * their own location_id - they're scoped through their parent (sales /
+     * kot_orders) via sale_id / kot_id.
+     */
     private static void migrateLocationColumns() {
         tryAlter("ALTER TABLE products ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
         tryAlter("ALTER TABLE sales ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
@@ -409,10 +434,44 @@ public class DatabaseManager {
         tryAlter("ALTER TABLE daily_closings ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
     }
 
+    /**
+     * Adds location_id to users and switches username uniqueness from GLOBAL
+     * to PER-LOCATION. This is the critical fix: previously "cashier1" could
+     * only ever exist once across your entire business. Now Agra Location 1
+     * and Agra Location 2 can each independently have their own "cashier1"
+     * without colliding, because the real uniqueness key is
+     * (username, location_id) together, not username alone.
+     */
     private static void migrateUsersTable() {
         tryAlter("ALTER TABLE users ADD COLUMN location_id INT DEFAULT " + DEFAULT_LOCATION_ID);
         tryAlter("ALTER TABLE users DROP INDEX username");
         tryAlter("ALTER TABLE users ADD UNIQUE KEY uniq_username_per_location (username, location_id)");
+    }
+
+    /**
+     * Adds subscription tracking to locations: subscription_active (boolean)
+     * and subscription_expiry_date. Every 6 months from signup/renewal, a
+     * location's access expires - SubscriptionDAO.isSubscriptionValid()
+     * checks this on every login attempt and auto-flips subscription_active
+     * to false once the expiry date passes, blocking further logins until
+     * SubscriptionDAO.renewSubscription(locationId) is called.
+     *
+     * Existing locations (created before this feature existed) are
+     * "grandfathered" with a fresh 6-month window starting today, so nobody
+     * already using the system gets locked out unexpectedly on this update.
+     */
+    private static void migrateSubscriptionColumns() {
+        tryAlter("ALTER TABLE locations ADD COLUMN subscription_active TINYINT(1) DEFAULT 1");
+        tryAlter("ALTER TABLE locations ADD COLUMN subscription_expiry_date DATE DEFAULT NULL");
+
+        String backfillSql = "UPDATE locations SET subscription_expiry_date = DATE_ADD(CURDATE(), INTERVAL 6 MONTH) " +
+                              "WHERE subscription_expiry_date IS NULL";
+        try (Statement stmt = getConnection().createStatement()) {
+            stmt.execute(backfillSql);
+        } catch (SQLException e) {
+            // Column may not exist yet on a very first run before the ALTERs above
+            // took effect in some edge case - safe to ignore, next startup catches it.
+        }
     }
 
     private static void tryAlter(String sql) {

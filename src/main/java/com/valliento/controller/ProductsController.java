@@ -4,7 +4,6 @@ import com.valliento.db.ProductDAO;
 import com.valliento.model.Product;
 import com.valliento.session.Session;
 import com.valliento.db.DatabaseManager;
-import com.valliento.db.DatabaseManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -22,7 +21,7 @@ public class ProductsController {
     @FXML private TableColumn<Product, String> gstColumn;
 
     @FXML private TextField nameField;
-    @FXML private TextField categoryField;
+    @FXML private ComboBox<String> categoryField;
     @FXML private TextField priceField;
     @FXML private TextField stockField;
     @FXML private ComboBox<String> gstComboBox;
@@ -37,6 +36,10 @@ public class ProductsController {
         GST_EXEMPT_LABEL, "5%", "12%", "18%", "20%"
     );
 
+    private static final ObservableList<String> CATEGORY_OPTIONS = FXCollections.observableArrayList(
+        "Beverages", "Snacks", "Pastries", "Combo", "Others"
+    );
+
     private final ObservableList<Product> products = FXCollections.observableArrayList();
     private Product selectedProduct = null;
 
@@ -47,8 +50,6 @@ public class ProductsController {
         priceColumn.setCellValueFactory(new PropertyValueFactory<>("price"));
         stockColumn.setCellValueFactory(new PropertyValueFactory<>("stock"));
 
-        // gst_rate is stored as a double (0.0 = exempt), so render it through
-        // a value factory that converts it to a friendly label for the table.
         gstColumn.setCellValueFactory(cellData ->
             new javafx.beans.property.SimpleStringProperty(
                 rateToLabel(cellData.getValue().getGstRate())
@@ -58,13 +59,15 @@ public class ProductsController {
         gstComboBox.setItems(GST_OPTIONS);
         gstComboBox.getSelectionModel().select(GST_EXEMPT_LABEL);
 
+        categoryField.setItems(CATEGORY_OPTIONS);
+
         productsTable.setItems(products);
 
         productsTable.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
             if (newSel != null) {
                 selectedProduct = newSel;
                 nameField.setText(newSel.getName());
-                categoryField.setText(newSel.getCategory());
+                categoryField.setValue(newSel.getCategory());
                 priceField.setText(String.valueOf(newSel.getPrice()));
                 stockField.setText(String.valueOf(newSel.getStock()));
                 gstComboBox.getSelectionModel().select(rateToLabel(newSel.getGstRate()));
@@ -84,7 +87,7 @@ public class ProductsController {
 
         boolean success = ProductDAO.addProduct(
             nameField.getText().trim(),
-            categoryField.getText().trim(),
+            categoryValue(),
             Double.parseDouble(priceField.getText().trim()),
             Integer.parseInt(stockField.getText().trim()),
             labelToRate(gstComboBox.getValue()),
@@ -110,7 +113,7 @@ public class ProductsController {
         boolean success = ProductDAO.updateProduct(
             selectedProduct.getId(),
             nameField.getText().trim(),
-            categoryField.getText().trim(),
+            categoryValue(),
             Double.parseDouble(priceField.getText().trim()),
             Integer.parseInt(stockField.getText().trim()),
             labelToRate(gstComboBox.getValue()),
@@ -150,7 +153,8 @@ public class ProductsController {
 
     private void clearForm() {
         nameField.clear();
-        categoryField.clear();
+        categoryField.getEditor().clear();
+        categoryField.setValue(null);
         priceField.clear();
         stockField.clear();
         gstComboBox.getSelectionModel().select(GST_EXEMPT_LABEL);
@@ -159,7 +163,7 @@ public class ProductsController {
     }
 
     private boolean validateForm() {
-        if (nameField.getText().trim().isEmpty() || categoryField.getText().trim().isEmpty()
+        if (nameField.getText().trim().isEmpty() || categoryValue().isEmpty()
             || priceField.getText().trim().isEmpty() || stockField.getText().trim().isEmpty()) {
             showAlert(Alert.AlertType.WARNING, "All fields are required.");
             return false;
@@ -178,8 +182,6 @@ public class ProductsController {
         return true;
     }
 
-    // Converts a stored gst_rate (0.0, 5.0, 12.0, 18.0, 20.0 ...) into the
-    // label shown in the ComboBox / table column.
     private static String rateToLabel(double rate) {
         if (rate <= 0.0) return GST_EXEMPT_LABEL;
         if (rate == Math.floor(rate)) {
@@ -188,11 +190,14 @@ public class ProductsController {
         return String.format("%s%%", rate);
     }
 
-    // Converts the selected ComboBox label back into the numeric rate
-    // expected by ProductDAO. "GST Exempt" -> 0.0.
     private static double labelToRate(String label) {
         if (label == null || label.equals(GST_EXEMPT_LABEL)) return 0.0;
         return Double.parseDouble(label.replace("%", "").trim());
+    }
+
+    private String categoryValue() {
+        String typed = categoryField.getEditor().getText();
+        return typed == null ? "" : typed.trim();
     }
 
     private int currentLocationId() {

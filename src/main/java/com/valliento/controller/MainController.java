@@ -11,6 +11,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
+import javafx.application.Platform;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,6 +36,8 @@ public class MainController {
     @FXML private Button navReports;
     @FXML private Button navSettings;
     @FXML private Label loggedInUserLabel;
+    @FXML private StackPane contentStack;
+    @FXML private VBox loadingOverlay;
 
     /** module key -> nav button / fxml file */
     private Map<String, Button> moduleButtons;
@@ -198,17 +203,43 @@ public class MainController {
     }
 
     private void loadScreen(String fxmlFile) {
-        try {
-            java.net.URL url = getClass().getResource("/com/valliento/" + fxmlFile);
-            if (url == null) {
-                showError("Resource not found: /com/valliento/" + fxmlFile);
-                return;
+        setNavigationEnabled(false);
+        loadingOverlay.setVisible(true);
+        loadingOverlay.setManaged(true);
+
+        // Defer the actual (blocking) load to the next UI pulse so the overlay
+        // and disabled buttons have a chance to actually paint first. JavaFX
+        // does not allow building screens on a background thread, so the load
+        // itself still blocks briefly - this just guarantees visual feedback
+        // appears before that block happens instead of never appearing at all.
+        Platform.runLater(() -> {
+            try {
+                java.net.URL url = getClass().getResource("/com/valliento/" + fxmlFile);
+                if (url == null) {
+                    showError("Resource not found: /com/valliento/" + fxmlFile);
+                    return;
+                }
+                Parent screen = FXMLLoader.load(url);
+
+                if (contentStack.getChildren().isEmpty()) {
+                    contentStack.getChildren().add(screen);
+                } else {
+                    contentStack.getChildren().set(0, screen);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                showError("Failed to load " + fxmlFile + ":\n" + e.getClass().getSimpleName() + ": " + e.getMessage());
+            } finally {
+                loadingOverlay.setVisible(false);
+                loadingOverlay.setManaged(false);
+                setNavigationEnabled(true);
             }
-            Parent screen = FXMLLoader.load(url);
-            rootPane.setCenter(screen);
-        } catch (Exception e) {
-            e.printStackTrace();
-            showError("Failed to load " + fxmlFile + ":\n" + e.getClass().getSimpleName() + ": " + e.getMessage());
+        });
+    }
+
+    private void setNavigationEnabled(boolean enabled) {
+        for (Button btn : moduleButtons.values()) {
+            btn.setDisable(!enabled);
         }
     }
 

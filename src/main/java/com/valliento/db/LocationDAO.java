@@ -33,13 +33,10 @@ public class LocationDAO {
         return locations;
     }
 
-    /**
-     * Creates a new location (e.g. "Agra Location 2") and its first Administrator
-     * account in one step. Returns the new location's id, or -1 on failure.
-     */
     public static int createLocationWithAdmin(String locationName, String adminUsername,
                                                String adminPassword, String adminFullName) {
-        String insertLocation = "INSERT INTO locations (name) VALUES (?)";
+        String insertLocation = "INSERT INTO locations (name, subscription_active, subscription_expiry_date) " +
+                                 "VALUES (?, 1, DATE_ADD(CURDATE(), INTERVAL 6 MONTH))";
         String insertAdmin = "INSERT INTO users (username, password, full_name, role, location_id) VALUES (?, ?, ?, 'Administrator', ?)";
 
         try {

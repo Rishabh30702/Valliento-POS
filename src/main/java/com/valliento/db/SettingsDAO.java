@@ -5,7 +5,7 @@ import java.sql.*;
 public class SettingsDAO {
 
     public static String get(String key, String defaultValue) {
-        String sql = "SELECT value FROM settings WHERE key = ?";
+        String sql = "SELECT value FROM settings WHERE `key` = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, key);
             try (ResultSet rs = ps.executeQuery()) {
@@ -25,8 +25,8 @@ public class SettingsDAO {
     }
 
     public static void set(String key, String value) {
-        String sql = "INSERT INTO settings (key, value) VALUES (?, ?) " +
-                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value";
+        String sql = "INSERT INTO settings (`key`, value) VALUES (?, ?) " +
+                     "ON DUPLICATE KEY UPDATE value = VALUES(value)";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, key);
             ps.setString(2, value);
@@ -47,7 +47,7 @@ public class SettingsDAO {
     }
 
     private static void seedIfMissing(String key, String defaultValue) {
-        String sql = "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)";
+        String sql = "INSERT IGNORE INTO settings (`key`, value) VALUES (?, ?)";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, key);
             ps.setString(2, defaultValue);

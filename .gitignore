@@ -7,3 +7,7 @@ diagnostic*.txt
 .idea/
 .vscode/
 *.iml
+installer-output/
+jpackage-input/
+dependency-reduced-pom.xml
+build2.txt

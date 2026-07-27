@@ -38,11 +38,11 @@
 
         <VBox spacing="4">
             <Label text="Category" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
-            <TextField fx:id="categoryField" promptText="e.g. Beverages" />
+            <ComboBox fx:id="categoryField" editable="true" promptText="e.g. Beverages" maxWidth="Infinity" />
         </VBox>
 
         <VBox spacing="4">
-            <Label text="Price (₹)" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+            <Label text="Price (â‚¹)" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
             <TextField fx:id="priceField" promptText="e.g. 120.00" />
         </VBox>
 
