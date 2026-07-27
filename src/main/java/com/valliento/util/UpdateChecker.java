@@ -7,9 +7,14 @@ import javafx.scene.control.ButtonType;
 
 import java.awt.Desktop;
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
 public class UpdateChecker {
+
+    // How long "Remind Me Later" should actually suppress the popup for.
+    private static final int SNOOZE_DAYS = 1;
 
     public static void checkForUpdateIfAdmin(String userRole) {
         if (!"Administrator".equals(userRole)) {
@@ -19,9 +24,39 @@ public class UpdateChecker {
         String latestVersion = SettingsDAO.get("latest_app_version", AppVersion.CURRENT_VERSION);
         String downloadUrl = SettingsDAO.get("update_download_url", "");
 
-        if (isNewer(latestVersion, AppVersion.CURRENT_VERSION)) {
-            showUpdateReminder(latestVersion, downloadUrl);
+        if (!isNewer(latestVersion, AppVersion.CURRENT_VERSION)) {
+            return;
         }
+
+        // Don't re-show if the user already saw + snoozed this exact version recently.
+        if (isSnoozed(latestVersion)) {
+            return;
+        }
+
+        showUpdateReminder(latestVersion, downloadUrl);
+    }
+
+    private static boolean isSnoozed(String latestVersion) {
+        String snoozedVersion = SettingsDAO.get("update_snoozed_version", "");
+        String snoozedUntilStr = SettingsDAO.get("update_snoozed_until", "");
+
+        // Only honour the snooze if it was set for this exact version - a newer
+        // update should still interrupt an old snooze.
+        if (!latestVersion.equals(snoozedVersion) || snoozedUntilStr.isBlank()) {
+            return false;
+        }
+
+        try {
+            LocalDate snoozedUntil = LocalDate.parse(snoozedUntilStr);
+            return !LocalDate.now().isAfter(snoozedUntil);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+    }
+
+    private static void snoozeUntilTomorrow(String latestVersion) {
+        SettingsDAO.set("update_snoozed_version", latestVersion);
+        SettingsDAO.set("update_snoozed_until", LocalDate.now().plusDays(SNOOZE_DAYS).toString());
     }
 
     private static boolean isNewer(String remoteVersion, String localVersion) {
@@ -48,7 +83,7 @@ public class UpdateChecker {
             "A new version of Valliento POS is ready to install.\n\n" +
             "For the smoothest experience, install this during a quiet time " +
             "(e.g. between shifts) rather than during store hours.\n\n" +
-            "This reminder will keep appearing at login until the update is installed."
+            "Choose \"Remind Me Later\" and this won't ask again until tomorrow."
         );
 
         ButtonType downloadButton = new ButtonType("Download Update");
@@ -66,6 +101,9 @@ public class UpdateChecker {
                 errorAlert.setHeaderText(null);
                 errorAlert.showAndWait();
             }
+        } else {
+            // "Remind Me Later" or dialog dismissed some other way (e.g. closed with X).
+            snoozeUntilTomorrow(latestVersion);
         }
     }
 }

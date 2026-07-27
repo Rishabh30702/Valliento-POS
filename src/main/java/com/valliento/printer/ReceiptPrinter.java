@@ -99,7 +99,7 @@ public class ReceiptPrinter {
         Text divider = new Text("--------------------------------");
         divider.setFont(Font.font("Monospaced", 9));
 
-        box.getChildren().addAll(title, subtitle, invoiceLine, dateLine, cashierLine, saleTypeLine, paymentLine, divider);
+        box.getChildren().addAll(title, subtitle, invoiceLine,dateLine, cashierLine, saleTypeLine, paymentLine, divider);
 
         for (CartItem item : items) {
             String line = String.format("%-16s x%-2d %8.2f",
@@ -117,6 +117,12 @@ public class ReceiptPrinter {
         subTotalLine.setFont(Font.font("Monospaced", 9));
         box.getChildren().add(subTotalLine);
 
+        // Sum taxable amount per rate bracket first (still needed for correct
+        // per-item math), but instead of printing one CGST/SGST or IGST line
+        // per rate bracket, we now accumulate everything into single totals
+        // so the receipt always shows just one CGST line and one SGST line
+        // (or one IGST line for inter-state), no matter how many different
+        // GST rates the items on this bill actually have.
         Map<Double, Double> taxableAmountByRate = new TreeMap<>();
         for (CartItem item : items) {
             double rate = item.getGstRate();
@@ -124,15 +130,18 @@ public class ReceiptPrinter {
             taxableAmountByRate.merge(rate, lineTaxable, Double::sum);
         }
 
+        double exemptAmt = 0.0;
         double totalGst = 0.0;
+        double totalCgst = 0.0;
+        double totalSgst = 0.0;
+        double totalIgst = 0.0;
+
         for (Map.Entry<Double, Double> entry : taxableAmountByRate.entrySet()) {
             double rate = entry.getKey();
             double taxableAmt = entry.getValue();
 
             if (rate <= 0.0) {
-                Text exemptLine = new Text(String.format("%-20s %10.2f", "GST Exempt", taxableAmt));
-                exemptLine.setFont(Font.font("Monospaced", 9));
-                box.getChildren().add(exemptLine);
+                exemptAmt += taxableAmt;
                 continue;
             }
 
@@ -140,24 +149,31 @@ public class ReceiptPrinter {
             totalGst += gstAmt;
 
             if (isInterState) {
-                String label = String.format("IGST @ %.1f%%", rate);
-                Text rateLine = new Text(String.format("%-20s %10.2f", label, gstAmt));
-                rateLine.setFont(Font.font("Monospaced", 9));
-                box.getChildren().add(rateLine);
+                totalIgst += gstAmt;
             } else {
-                double halfRate = rate / 2.0;
-                double halfAmt = gstAmt / 2.0;
-
-                String cgstLabel = String.format("CGST @ %.1f%%", halfRate);
-                Text cgstLine = new Text(String.format("%-20s %10.2f", cgstLabel, halfAmt));
-                cgstLine.setFont(Font.font("Monospaced", 9));
-                box.getChildren().add(cgstLine);
-
-                String sgstLabel = String.format("SGST @ %.1f%%", halfRate);
-                Text sgstLine = new Text(String.format("%-20s %10.2f", sgstLabel, halfAmt));
-                sgstLine.setFont(Font.font("Monospaced", 9));
-                box.getChildren().add(sgstLine);
+                totalCgst += gstAmt / 2.0;
+                totalSgst += gstAmt / 2.0;
             }
+        }
+
+        if (exemptAmt > 0.0) {
+            Text exemptLine = new Text(String.format("%-20s %10.2f", "GST Exempt", exemptAmt));
+            exemptLine.setFont(Font.font("Monospaced", 9));
+            box.getChildren().add(exemptLine);
+        }
+
+        if (isInterState) {
+            Text igstLine = new Text(String.format("%-20s %10.2f", "IGST", totalIgst));
+            igstLine.setFont(Font.font("Monospaced", 9));
+            box.getChildren().add(igstLine);
+        } else {
+            Text cgstLine = new Text(String.format("%-20s %10.2f", "CGST", totalCgst));
+            cgstLine.setFont(Font.font("Monospaced", 9));
+            box.getChildren().add(cgstLine);
+
+            Text sgstLine = new Text(String.format("%-20s %10.2f", "SGST", totalSgst));
+            sgstLine.setFont(Font.font("Monospaced", 9));
+            box.getChildren().add(sgstLine);
         }
 
         Text totalGstLine = new Text(String.format("%-20s %10.2f", "Total GST", totalGst));

@@ -15,7 +15,7 @@ public class MainApp extends Application {
         Parent root = FXMLLoader.load(getClass().getResource("/com/valliento/login.fxml"));
         Scene scene = new Scene(root, 1366, 800);
         stage.setTitle("Valliento POS");
-        stage.getIcons().add(new Image(getClass().getResourceAsStream("/com/valliento/images/icon.png")));
+        stage.getIcons().add(new Image(getClass().getResourceAsStream("/com/valliento/images/app-icon-full.png")));
         stage.setScene(scene);
         stage.setMinWidth(1024);
         stage.setMinHeight(650);
@@ -26,5 +26,6 @@ public class MainApp extends Application {
 
     public static void main(String[] args) {
         launch(args);
+ 
     }
 }
