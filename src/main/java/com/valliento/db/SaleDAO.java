@@ -13,8 +13,9 @@ public class SaleDAO {
     /**
      * Returns total sales grouped by month for the last N months (oldest first),
      * for charting on the Dashboard. Months with no sales still appear with 0.
+     * Scoped to a single location_id.
      */
-    public static java.util.LinkedHashMap<String, Double> getMonthlySalesTotals(int monthsBack) {
+    public static java.util.LinkedHashMap<String, Double> getMonthlySalesTotals(int monthsBack, int locationId) {
         java.util.LinkedHashMap<String, Double> result = new java.util.LinkedHashMap<>();
 
         java.time.YearMonth current = java.time.YearMonth.now();
@@ -27,19 +28,21 @@ public class SaleDAO {
         }
 
         String sql = "SELECT strftime('%Y-%m', created_at) AS month, SUM(total) AS total " +
-                     "FROM sales GROUP BY month ORDER BY month";
-        try (Statement st = DatabaseManager.getConnection().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            while (rs.next()) {
-                String monthKey = rs.getString("month");
-                double total = rs.getDouble("total");
-                try {
-                    java.time.YearMonth ym = java.time.YearMonth.parse(monthKey);
-                    String label = ym.format(java.time.format.DateTimeFormatter.ofPattern("MMM yy"));
-                    if (result.containsKey(label)) {
-                        result.put(label, total);
+                     "FROM sales WHERE location_id = ? GROUP BY month ORDER BY month";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setInt(1, locationId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String monthKey = rs.getString("month");
+                    double total = rs.getDouble("total");
+                    try {
+                        java.time.YearMonth ym = java.time.YearMonth.parse(monthKey);
+                        String label = ym.format(java.time.format.DateTimeFormatter.ofPattern("MMM yy"));
+                        if (result.containsKey(label)) {
+                            result.put(label, total);
+                        }
+                    } catch (Exception ignored) {
                     }
-                } catch (Exception ignored) {
                 }
             }
         } catch (SQLException e) {
@@ -72,17 +75,18 @@ public class SaleDAO {
         return "INV-" + nextNumber;
     }
 
-    public static void recordSale(String invoiceNo, double total, double tax, List<CartItem> items, String cashierName) {
-        recordSale(invoiceNo, total, tax, items, cashierName, false, "Cash");
+    public static void recordSale(String invoiceNo, double total, double tax, List<CartItem> items,
+                                   String cashierName, int locationId) {
+        recordSale(invoiceNo, total, tax, items, cashierName, false, "Cash", locationId);
     }
 
     public static void recordSale(String invoiceNo, double total, double tax, List<CartItem> items,
-                                   String cashierName, boolean isInterState) {
-        recordSale(invoiceNo, total, tax, items, cashierName, isInterState, "Cash");
+                                   String cashierName, boolean isInterState, int locationId) {
+        recordSale(invoiceNo, total, tax, items, cashierName, isInterState, "Cash", locationId);
     }
 
     public static void recordSale(String invoiceNo, double total, double tax, List<CartItem> items,
-                                   String cashierName, boolean isInterState, String paymentMethod) {
+                                   String cashierName, boolean isInterState, String paymentMethod, int locationId) {
         double cgstAmount = isInterState ? 0.0 : tax / 2.0;
         double sgstAmount = isInterState ? 0.0 : tax / 2.0;
         double igstAmount = isInterState ? tax : 0.0;
@@ -95,8 +99,8 @@ public class SaleDAO {
         String createdAt = DatabaseManager.nowLocal();
 
         String insertSale = "INSERT INTO sales " +
-            "(invoice_no, total, tax, cashier_name, shift, sale_type, cgst_amount, sgst_amount, igst_amount, payment_method, created_at) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            "(invoice_no, total, tax, cashier_name, shift, sale_type, cgst_amount, sgst_amount, igst_amount, payment_method, location_id, created_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String insertItem = "INSERT INTO sale_items (sale_id, product_name, qty, price, gst_rate, gst_amount) VALUES (?, ?, ?, ?, ?, ?)";
 
         Connection conn = null;
@@ -116,7 +120,8 @@ public class SaleDAO {
                 ps.setDouble(8, sgstAmount);
                 ps.setDouble(9, igstAmount);
                 ps.setString(10, payMethod);
-                ps.setString(11, createdAt);
+                ps.setInt(11, locationId);
+                ps.setString(12, createdAt);
                 ps.executeUpdate();
                 try (ResultSet keys = ps.getGeneratedKeys()) {
                     keys.next();
@@ -158,12 +163,13 @@ public class SaleDAO {
         }
     }
 
-    public static double getTodaysSalesTotal() {
+    public static double getTodaysSalesTotal(int locationId) {
         // Compare against the app's own "today" (LocalDate.now()) rather than
         // the DB server's CURDATE(), which may be on a different clock/timezone.
-        String sql = "SELECT COALESCE(SUM(total), 0) FROM sales WHERE DATE(created_at) = ?";
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM sales WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, LocalDate.now().toString());
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getDouble(1);
             }
@@ -173,10 +179,11 @@ public class SaleDAO {
         return 0;
     }
 
-    public static int getTodaysTransactionCount() {
-        String sql = "SELECT COUNT(*) FROM sales WHERE DATE(created_at) = ?";
+    public static int getTodaysTransactionCount(int locationId) {
+        String sql = "SELECT COUNT(*) FROM sales WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, LocalDate.now().toString());
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
             }
@@ -189,17 +196,19 @@ public class SaleDAO {
     /**
      * Item-wise sales report: one row per product sold, with CGST/SGST/IGST
      * derived from that sale's sale_type (Inter-State -> IGST, else CGST+SGST split).
+     * Scoped to a single location_id.
      */
-    public static List<com.valliento.model.SaleItemRecord> getItemWiseSalesReport(String fromDate, String toDate) {
+    public static List<com.valliento.model.SaleItemRecord> getItemWiseSalesReport(String fromDate, String toDate, int locationId) {
         List<com.valliento.model.SaleItemRecord> records = new ArrayList<>();
         String sql = "SELECT s.invoice_no, s.cashier_name, s.sale_type, s.created_at, " +
                      "si.product_name, si.qty, si.price, si.gst_rate, si.gst_amount " +
                      "FROM sale_items si JOIN sales s ON si.sale_id = s.id " +
-                     "WHERE DATE(s.created_at) BETWEEN ? AND ? " +
+                     "WHERE DATE(s.created_at) BETWEEN ? AND ? AND s.location_id = ? " +
                      "ORDER BY s.created_at DESC, si.id ASC";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, fromDate);
             ps.setString(2, toDate);
+            ps.setInt(3, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     boolean interState = "Inter-State".equals(rs.getString("sale_type"));
@@ -226,13 +235,14 @@ public class SaleDAO {
         return records;
     }
 
-    public static List<SaleRecord> getSalesReport(String fromDate, String toDate) {
+    public static List<SaleRecord> getSalesReport(String fromDate, String toDate, int locationId) {
         List<SaleRecord> records = new ArrayList<>();
         String sql = "SELECT invoice_no, cashier_name, shift, total, created_at " +
-                     "FROM sales WHERE DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC";
+                     "FROM sales WHERE DATE(created_at) BETWEEN ? AND ? AND location_id = ? ORDER BY created_at DESC";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, fromDate);
             ps.setString(2, toDate);
+            ps.setInt(3, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     records.add(new SaleRecord(

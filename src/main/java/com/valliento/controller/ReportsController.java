@@ -1,9 +1,11 @@
 package com.valliento.controller;
 
+import com.valliento.db.DatabaseManager;
 import com.valliento.db.SaleDAO;
 import com.valliento.export.ReportExporter;
 import com.valliento.model.SaleItemRecord;
 import com.valliento.model.SaleRecord;
+import com.valliento.session.Session;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -72,6 +74,10 @@ public class ReportsController {
         onFilter();
     }
 
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
     private boolean isItemWiseMode() {
         return itemWiseRadio.isSelected();
     }
@@ -94,15 +100,16 @@ public class ReportsController {
         }
         String from = fromDatePicker.getValue().toString();
         String to = toDatePicker.getValue().toString();
+        int locationId = currentLocationId();
 
         if (isItemWiseMode()) {
-            itemRecords.setAll(SaleDAO.getItemWiseSalesReport(from, to));
+            itemRecords.setAll(SaleDAO.getItemWiseSalesReport(from, to, locationId));
             double grandTotal = itemRecords.stream().mapToDouble(SaleItemRecord::getLineTotal).sum();
             double totalGst = itemRecords.stream().mapToDouble(SaleItemRecord::getTotalGst).sum();
             grandTotalLabel.setText(String.format("Grand Total: \u20B9%.2f  |  Total GST: \u20B9%.2f  (%d line items)",
                 grandTotal, totalGst, itemRecords.size()));
         } else {
-            records.setAll(SaleDAO.getSalesReport(from, to));
+            records.setAll(SaleDAO.getSalesReport(from, to, locationId));
             double grandTotal = records.stream().mapToDouble(SaleRecord::getTotal).sum();
             grandTotalLabel.setText(String.format("Grand Total: \u20B9%.2f  (%d sales)", grandTotal, records.size()));
         }

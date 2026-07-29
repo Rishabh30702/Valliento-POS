@@ -348,7 +348,7 @@ public class BillingController {
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() {
-                SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, interState, paymentMethod);
+SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, interState, paymentMethod, currentLocationId());
                 ReceiptPrinter.printReceipt(invoiceNo, cashierName, itemsSnapshot, subTotal, tax, grandTotal, interState, paymentMethod);
                 if (selectedTable != null) {
                     TableDAO.updateTableStatus(selectedTable.getId(), "Available");

@@ -52,10 +52,11 @@ public class DashboardController {
     }
 
     private void refreshStats() {
-        double todaysSales = SaleDAO.getTodaysSalesTotal();
-        int todaysTransactions = SaleDAO.getTodaysTransactionCount();
-        int totalProducts = ProductDAO.getTotalProductCount(currentLocationId());
-        int lowStock = ProductDAO.getLowStockCount(20, currentLocationId());
+        int locationId = currentLocationId();
+        double todaysSales = SaleDAO.getTodaysSalesTotal(locationId);
+        int todaysTransactions = SaleDAO.getTodaysTransactionCount(locationId);
+        int totalProducts = ProductDAO.getTotalProductCount(locationId);
+        int lowStock = ProductDAO.getLowStockCount(20, locationId);
 
         todaysSalesLabel.setText(String.format("\u20B9%.2f", todaysSales));
         todaysTransactionsLabel.setText(todaysTransactions + " Transactions");
@@ -64,10 +65,7 @@ public class DashboardController {
     }
 
     private void loadSalesChart() {
-        // NOTE: matches the existing pattern above (getTodaysSalesTotal/getTodaysTransactionCount
-        // are not location-scoped either) - if sales should be scoped per location, let me know
-        // and I'll add a locationId parameter to SaleDAO.getMonthlySalesTotals() too.
-        LinkedHashMap<String, Double> monthlyTotals = SaleDAO.getMonthlySalesTotals(MONTHS_TO_SHOW);
+        LinkedHashMap<String, Double> monthlyTotals = SaleDAO.getMonthlySalesTotals(MONTHS_TO_SHOW, currentLocationId());
 
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("Sales");

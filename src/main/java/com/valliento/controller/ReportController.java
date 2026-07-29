@@ -1,6 +1,8 @@
 package com.valliento.controller;
 
+import com.valliento.db.DatabaseManager;
 import com.valliento.db.ReportDAO;
+import com.valliento.session.Session;
 import javafx.fxml.FXML;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.XYChart;
@@ -32,6 +34,10 @@ public class ReportController {
         onFilter();
     }
 
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
     @FXML
     private void onFilter() {
         LocalDate start = startDatePicker.getValue();
@@ -41,16 +47,17 @@ public class ReportController {
         }
         String startStr = start.format(FMT);
         String endStr = end.format(FMT);
+        int locationId = currentLocationId();
 
-        double totalSales = ReportDAO.getTotalSales(startStr, endStr);
-        int transactionCount = ReportDAO.getTransactionCount(startStr, endStr);
+        double totalSales = ReportDAO.getTotalSales(startStr, endStr, locationId);
+        int transactionCount = ReportDAO.getTransactionCount(startStr, endStr, locationId);
         double avgBill = transactionCount == 0 ? 0.0 : totalSales / transactionCount;
 
-        totalSalesLabel.setText(String.format("₹%,.2f", totalSales));
+        totalSalesLabel.setText(String.format("\u20B9%,.2f", totalSales));
         totalTransactionsLabel.setText(String.valueOf(transactionCount));
-        averageBillLabel.setText(String.format("₹%,.2f", avgBill));
+        averageBillLabel.setText(String.format("\u20B9%,.2f", avgBill));
 
-        Map<String, Double> daily = ReportDAO.getDailySales(startStr, endStr);
+        Map<String, Double> daily = ReportDAO.getDailySales(startStr, endStr, locationId);
         salesChart.getData().clear();
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("Sales");

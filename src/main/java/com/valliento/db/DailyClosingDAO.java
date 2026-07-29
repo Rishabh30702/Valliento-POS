@@ -6,10 +6,11 @@ import java.sql.*;
 
 public class DailyClosingDAO {
 
-    public static double getSalesTotalForDate(String date) {
-        String sql = "SELECT COALESCE(SUM(total), 0) FROM sales WHERE date(created_at) = ?";
+    public static double getSalesTotalForDate(String date, int locationId) {
+        String sql = "SELECT COALESCE(SUM(total), 0) FROM sales WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, date);
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getDouble(1);
             }
@@ -19,10 +20,11 @@ public class DailyClosingDAO {
         return 0.0;
     }
 
-    public static int getTransactionCountForDate(String date) {
-        String sql = "SELECT COUNT(*) FROM sales WHERE date(created_at) = ?";
+    public static int getTransactionCountForDate(String date, int locationId) {
+        String sql = "SELECT COUNT(*) FROM sales WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, date);
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
             }
@@ -32,10 +34,11 @@ public class DailyClosingDAO {
         return 0;
     }
 
-    public static double getExpensesTotalForDate(String date) {
-        String sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE date(created_at) = ?";
+    public static double getExpensesTotalForDate(String date, int locationId) {
+        String sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, date);
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getDouble(1);
             }
@@ -45,11 +48,12 @@ public class DailyClosingDAO {
         return 0.0;
     }
 
-    public static DailyClosing getClosingForDate(String date) {
+    public static DailyClosing getClosingForDate(String date, int locationId) {
         String sql = "SELECT id, closing_date, total_sales, total_transactions, total_expenses, net_sales, closed_by, closed_at " +
-                     "FROM daily_closings WHERE closing_date = ?";
+                     "FROM daily_closings WHERE closing_date = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, date);
+            ps.setInt(2, locationId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     return new DailyClosing(
@@ -71,9 +75,9 @@ public class DailyClosingDAO {
     }
 
     public static boolean closeDay(String date, double totalSales, int totalTransactions,
-                                    double totalExpenses, double netSales, String closedBy) {
-        String sql = "INSERT INTO daily_closings (closing_date, total_sales, total_transactions, total_expenses, net_sales, closed_by, closed_at) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+                                    double totalExpenses, double netSales, String closedBy, int locationId) {
+        String sql = "INSERT INTO daily_closings (closing_date, total_sales, total_transactions, total_expenses, net_sales, closed_by, location_id, closed_at) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, date);
             ps.setDouble(2, totalSales);
@@ -81,7 +85,8 @@ public class DailyClosingDAO {
             ps.setDouble(4, totalExpenses);
             ps.setDouble(5, netSales);
             ps.setString(6, closedBy);
-            ps.setString(7, DatabaseManager.nowLocal());
+            ps.setInt(7, locationId);
+            ps.setString(8, DatabaseManager.nowLocal());
             ps.executeUpdate();
             return true;
         } catch (SQLException e) {
@@ -89,4 +94,4 @@ public class DailyClosingDAO {
             return false;
         }
     }
-}
+} 

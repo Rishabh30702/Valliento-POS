@@ -1,6 +1,7 @@
 package com.valliento.controller;
 
 import com.valliento.db.DailyClosingDAO;
+import com.valliento.db.DatabaseManager;
 import com.valliento.model.DailyClosing;
 import com.valliento.session.Session;
 import javafx.fxml.FXML;
@@ -30,6 +31,10 @@ public class DailyClosingController {
         refresh();
     }
 
+    private int currentLocationId() {
+        return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
     @FXML
     private void onDateChanged() {
         refresh();
@@ -39,8 +44,9 @@ public class DailyClosingController {
         LocalDate date = closingDatePicker.getValue();
         if (date == null) return;
         String dateStr = date.format(FMT);
+        int locationId = currentLocationId();
 
-        DailyClosing existing = DailyClosingDAO.getClosingForDate(dateStr);
+        DailyClosing existing = DailyClosingDAO.getClosingForDate(dateStr, locationId);
 
         double totalSales;
         int totalTransactions;
@@ -55,9 +61,9 @@ public class DailyClosingController {
             statusLabel.setText("Day is CLOSED (closed by " + existing.getClosedBy() + " at " + existing.getClosedAt() + ")");
             closeDayButton.setDisable(true);
         } else {
-            totalSales = DailyClosingDAO.getSalesTotalForDate(dateStr);
-            totalTransactions = DailyClosingDAO.getTransactionCountForDate(dateStr);
-            totalExpenses = DailyClosingDAO.getExpensesTotalForDate(dateStr);
+            totalSales = DailyClosingDAO.getSalesTotalForDate(dateStr, locationId);
+            totalTransactions = DailyClosingDAO.getTransactionCountForDate(dateStr, locationId);
+            totalExpenses = DailyClosingDAO.getExpensesTotalForDate(dateStr, locationId);
             netSales = totalSales - totalExpenses;
             statusLabel.setText("Day is OPEN");
             closeDayButton.setDisable(false);
@@ -74,8 +80,9 @@ public class DailyClosingController {
         LocalDate date = closingDatePicker.getValue();
         if (date == null) return;
         String dateStr = date.format(FMT);
+        int locationId = currentLocationId();
 
-        if (DailyClosingDAO.getClosingForDate(dateStr) != null) {
+        if (DailyClosingDAO.getClosingForDate(dateStr, locationId) != null) {
             showAlert("This day has already been closed.");
             refresh();
             return;
@@ -89,14 +96,14 @@ public class DailyClosingController {
             return;
         }
 
-        double totalSales = DailyClosingDAO.getSalesTotalForDate(dateStr);
-        int totalTransactions = DailyClosingDAO.getTransactionCountForDate(dateStr);
-        double totalExpenses = DailyClosingDAO.getExpensesTotalForDate(dateStr);
+        double totalSales = DailyClosingDAO.getSalesTotalForDate(dateStr, locationId);
+        int totalTransactions = DailyClosingDAO.getTransactionCountForDate(dateStr, locationId);
+        double totalExpenses = DailyClosingDAO.getExpensesTotalForDate(dateStr, locationId);
         double netSales = totalSales - totalExpenses;
 
         String closedBy = Session.getCurrentUser() != null ? Session.getCurrentUser().getFullName() : "Unknown";
 
-        boolean success = DailyClosingDAO.closeDay(dateStr, totalSales, totalTransactions, totalExpenses, netSales, closedBy);
+        boolean success = DailyClosingDAO.closeDay(dateStr, totalSales, totalTransactions, totalExpenses, netSales, closedBy, locationId);
         if (success) {
             showAlert("Day closed successfully.");
             refresh();
