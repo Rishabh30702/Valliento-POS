@@ -2,6 +2,7 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
@@ -33,16 +34,28 @@
 
         <VBox spacing="4">
             <Label text="Name" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
-            <TextField fx:id="nameField" promptText="e.g. Cappuccino" />
+            <TextField fx:id="nameField" promptText="e.g. Cappuccino"/>
         </VBox>
 
         <VBox spacing="4">
             <Label text="Category" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
-            <ComboBox fx:id="categoryField" editable="true" promptText="e.g. Beverages" maxWidth="Infinity" />
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <ComboBox fx:id="categoryField" editable="true" promptText="Search or type category" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button fx:id="addCategoryToggleButton" text="+" onAction="#onToggleAddCategory" minWidth="30" maxWidth="30" />
+            </HBox>
+        </VBox>
+
+        <VBox fx:id="addCategoryPanel" spacing="6" visible="false" managed="false" style="-fx-background-color: #f3f4f6; -fx-padding: 8; -fx-background-radius: 6;">
+            <Label text="New Category Name" style="-fx-font-size: 11px; -fx-font-weight: bold;" />
+            <HBox spacing="6">
+                <TextField fx:id="newCategoryField" promptText="e.g. Softy" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button styleClass="btn-save" text="Save" onAction="#onSaveNewCategory" />
+                <Button text="Cancel" onAction="#onCancelNewCategory" />
+            </HBox>
         </VBox>
 
         <VBox spacing="4">
-            <Label text="Price (â‚¹)" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+            <Label text="Price (₹)" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
             <TextField fx:id="priceField" promptText="e.g. 120.00" />
         </VBox>
 
@@ -56,11 +69,12 @@
             <ComboBox fx:id="gstComboBox" promptText="Select GST rate" maxWidth="Infinity" />
         </VBox>
 
-        <HBox spacing="8">
-            <Button styleClass="btn-save" text="Add" onAction="#onAddProduct" />
-            <Button styleClass="btn-pay" text="Update" onAction="#onUpdateProduct" />
-            <Button styleClass="btn-hold" text="Delete" onAction="#onDeleteProduct" />
-            <Button styleClass="category-btn" text="Clear" onAction="#onClearForm" />
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Button fx:id="addButton" styleClass="btn-save" text="Add" onAction="#onAddProduct" />
+            <Button fx:id="updateButton" styleClass="btn-pay" text="Update" onAction="#onUpdateProduct" />
+            <Button fx:id="deleteButton" styleClass="btn-hold" text="Delete" onAction="#onDeleteProduct" />
+            <Button fx:id="clearButton" styleClass="category-btn" text="Clear" onAction="#onClearForm" />
+            <ProgressIndicator fx:id="savingIndicator" visible="false" managed="false" maxWidth="20" maxHeight="20" />
         </HBox>
     </VBox>
 

@@ -10,6 +10,44 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SaleDAO {
+    /**
+     * Returns total sales grouped by month for the last N months (oldest first),
+     * for charting on the Dashboard. Months with no sales still appear with 0.
+     */
+    public static java.util.LinkedHashMap<String, Double> getMonthlySalesTotals(int monthsBack) {
+        java.util.LinkedHashMap<String, Double> result = new java.util.LinkedHashMap<>();
+
+        java.time.YearMonth current = java.time.YearMonth.now();
+        java.util.List<java.time.YearMonth> months = new java.util.ArrayList<>();
+        for (int i = monthsBack - 1; i >= 0; i--) {
+            months.add(current.minusMonths(i));
+        }
+        for (java.time.YearMonth ym : months) {
+            result.put(ym.format(java.time.format.DateTimeFormatter.ofPattern("MMM yy")), 0.0);
+        }
+
+        String sql = "SELECT strftime('%Y-%m', created_at) AS month, SUM(total) AS total " +
+                     "FROM sales GROUP BY month ORDER BY month";
+        try (Statement st = DatabaseManager.getConnection().createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                String monthKey = rs.getString("month");
+                double total = rs.getDouble("total");
+                try {
+                    java.time.YearMonth ym = java.time.YearMonth.parse(monthKey);
+                    String label = ym.format(java.time.format.DateTimeFormatter.ofPattern("MMM yy"));
+                    if (result.containsKey(label)) {
+                        result.put(label, total);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
 
     public static String determineShift() {
         int hour = LocalTime.now().getHour();
@@ -146,6 +184,46 @@ public class SaleDAO {
             e.printStackTrace();
         }
         return 0;
+    }
+
+    /**
+     * Item-wise sales report: one row per product sold, with CGST/SGST/IGST
+     * derived from that sale's sale_type (Inter-State -> IGST, else CGST+SGST split).
+     */
+    public static List<com.valliento.model.SaleItemRecord> getItemWiseSalesReport(String fromDate, String toDate) {
+        List<com.valliento.model.SaleItemRecord> records = new ArrayList<>();
+        String sql = "SELECT s.invoice_no, s.cashier_name, s.sale_type, s.created_at, " +
+                     "si.product_name, si.qty, si.price, si.gst_rate, si.gst_amount " +
+                     "FROM sale_items si JOIN sales s ON si.sale_id = s.id " +
+                     "WHERE DATE(s.created_at) BETWEEN ? AND ? " +
+                     "ORDER BY s.created_at DESC, si.id ASC";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, fromDate);
+            ps.setString(2, toDate);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    boolean interState = "Inter-State".equals(rs.getString("sale_type"));
+                    double gstAmount = rs.getDouble("gst_amount");
+                    double cgst = interState ? 0.0 : gstAmount / 2.0;
+                    double sgst = interState ? 0.0 : gstAmount / 2.0;
+                    double igst = interState ? gstAmount : 0.0;
+
+                    records.add(new com.valliento.model.SaleItemRecord(
+                        rs.getString("invoice_no"),
+                        rs.getString("product_name"),
+                        rs.getInt("qty"),
+                        rs.getDouble("price"),
+                        rs.getDouble("gst_rate"),
+                        cgst, sgst, igst,
+                        rs.getString("cashier_name"),
+                        rs.getString("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return records;
     }
 
     public static List<SaleRecord> getSalesReport(String fromDate, String toDate) {

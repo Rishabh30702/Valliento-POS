@@ -25,4 +25,4 @@ public class User {
     public String getFullName() { return fullName; }
     public String getRole() { return role; }
     public int getLocationId() { return locationId; }
-}
+} 

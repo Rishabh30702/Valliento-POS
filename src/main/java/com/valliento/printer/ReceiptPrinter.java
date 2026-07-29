@@ -119,8 +119,8 @@ public class ReceiptPrinter {
 
         // Sum taxable amount per rate bracket first (still needed for correct
         // per-item math), but instead of printing one CGST/SGST or IGST line
-        // per rate bracket, we now accumulate everything into single totals
-        // so the receipt always shows just one CGST line and one SGST line
+        // per rate bracket, we accumulate everything into single totals so
+        // the receipt always shows just one CGST line and one SGST line
         // (or one IGST line for inter-state), no matter how many different
         // GST rates the items on this bill actually have.
         Map<Double, Double> taxableAmountByRate = new TreeMap<>();
@@ -131,7 +131,6 @@ public class ReceiptPrinter {
         }
 
         double exemptAmt = 0.0;
-        double totalGst = 0.0;
         double totalCgst = 0.0;
         double totalSgst = 0.0;
         double totalIgst = 0.0;
@@ -146,7 +145,6 @@ public class ReceiptPrinter {
             }
 
             double gstAmt = taxableAmt * rate / 100.0;
-            totalGst += gstAmt;
 
             if (isInterState) {
                 totalIgst += gstAmt;
@@ -176,9 +174,8 @@ public class ReceiptPrinter {
             box.getChildren().add(sgstLine);
         }
 
-        Text totalGstLine = new Text(String.format("%-20s %10.2f", "Total GST", totalGst));
-        totalGstLine.setFont(Font.font("Monospaced", 9));
-        box.getChildren().add(totalGstLine);
+        // "Total GST" summary line removed - CGST + SGST (or IGST) above
+        // already convey the full tax amount without a redundant third line.
 
         Text totalLine = new Text(String.format("%-20s %10.2f", "TOTAL", grandTotal));
         totalLine.setFont(Font.font("Monospaced", FontWeight.BOLD, 9));

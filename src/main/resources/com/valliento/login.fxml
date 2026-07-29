@@ -3,6 +3,7 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.image.ImageView?>
@@ -20,7 +21,7 @@
             <Insets top="30" right="30" bottom="30" left="30" />
         </padding>
 
-        <ImageView fitWidth="300" preserveRatio="true">
+        <ImageView fitWidth="280" preserveRatio="true">
             <Image url="@images/logo.png" />
         </ImageView>
         <Label text="Smart Billing. Seamless Business." style="-fx-font-size: 11px; -fx-text-fill: #6b7280;" />
@@ -37,9 +38,10 @@
 
         <Label fx:id="errorLabel" style="-fx-text-fill: #c0392b; -fx-font-size: 11px;" visible="false" wrapText="true" />
 
-        <Button styleClass="btn-pay" text="Login" onAction="#onLogin" maxWidth="Infinity" />
-
-        <Label text="Default: admin / admin123" style="-fx-font-size: 10px; -fx-text-fill: #9ca3af;" />
+        <StackPane>
+            <Button fx:id="loginButton" styleClass="btn-pay" text="Login" onAction="#onLogin" maxWidth="Infinity" />
+            <ProgressIndicator fx:id="loadingIndicator" visible="false" managed="false" maxWidth="22" maxHeight="22" />
+        </StackPane>
     </VBox>
 
 </StackPane>

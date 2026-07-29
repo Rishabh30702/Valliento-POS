@@ -7,6 +7,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.FlowPane?>
@@ -70,10 +71,11 @@
         </VBox>
 
         <HBox spacing="10" alignment="CENTER">
-            <Button styleClass="btn-hold" text="Hold" onAction="#onHold" />
-            <Button styleClass="btn-save" text="Save" onAction="#onSave" />
-            <Button styleClass="btn-pay" text="Pay &amp; Print" onAction="#onPayAndPrint" />
-            <Button styleClass="btn-hold" text="Send to Kitchen" onAction="#onSendToKitchen" />
+            <Button fx:id="holdButton" styleClass="btn-hold" text="Hold" onAction="#onHold" />
+            <Button fx:id="saveButton" styleClass="btn-save" text="Save" onAction="#onSave" />
+            <Button fx:id="payButton" styleClass="btn-pay" text="Pay &amp; Print" onAction="#onPayAndPrint" />
+            <Button fx:id="sendToKitchenButton" styleClass="btn-hold" text="Send to Kitchen" onAction="#onSendToKitchen" />
+            <ProgressIndicator fx:id="billingSpinner" visible="false" managed="false" maxWidth="20" maxHeight="20" />
         </HBox>
     </VBox>
 

@@ -3,6 +3,7 @@ package com.valliento.db;
 import com.valliento.model.Expense;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +16,28 @@ public class ExpenseDAO {
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) {
                 expenses.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return expenses;
+    }
+
+    /**
+     * Expenses between fromDate and toDate (inclusive), newest first.
+     * Used by the date-range filter on the Expenses screen.
+     */
+    public static List<Expense> getExpensesByDateRange(String fromDate, String toDate) {
+        List<Expense> expenses = new ArrayList<>();
+        String sql = "SELECT id, expense_type, amount, note, created_at FROM expenses " +
+                     "WHERE DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, fromDate);
+            ps.setString(2, toDate);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    expenses.add(mapRow(rs));
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -37,6 +60,25 @@ public class ExpenseDAO {
         }
     }
 
+    /**
+     * Updates an existing expense's type/amount/note. created_at is left as-is
+     * (the original entry date shouldn't change just because it was edited).
+     */
+    public static boolean updateExpense(int id, String type, double amount, String note) {
+        String sql = "UPDATE expenses SET expense_type = ?, amount = ?, note = ? WHERE id = ?";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, type);
+            ps.setDouble(2, amount);
+            ps.setString(3, note);
+            ps.setInt(4, id);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public static boolean deleteExpense(int id) {
         String sql = "DELETE FROM expenses WHERE id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
@@ -49,11 +91,18 @@ public class ExpenseDAO {
         }
     }
 
+    /**
+     * Fixed: previously relied on SQLite's own date('now','localtime'), which
+     * doesn't match the app's own clock (same reasoning as SaleDAO.getTodaysSalesTotal).
+     * Now parameterized against LocalDate.now(), same pattern used everywhere else.
+     */
     public static double getTodaysExpenseTotal() {
-        String sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE date(created_at) = date('now', 'localtime')";
-        try (Statement st = DatabaseManager.getConnection().createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            if (rs.next()) return rs.getDouble(1);
+        String sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE DATE(created_at) = ?";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setString(1, LocalDate.now().toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getDouble(1);
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

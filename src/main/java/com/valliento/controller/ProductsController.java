@@ -1,15 +1,22 @@
 package com.valliento.controller;
 
+import com.valliento.db.CategoryDAO;
 import com.valliento.db.ProductDAO;
 import com.valliento.model.Product;
 import com.valliento.session.Session;
 import com.valliento.db.DatabaseManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.fxml.FXML;
+import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
+import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.VBox;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 public class ProductsController {
 
@@ -22,6 +29,9 @@ public class ProductsController {
 
     @FXML private TextField nameField;
     @FXML private ComboBox<String> categoryField;
+    @FXML private Button addCategoryToggleButton;
+    @FXML private VBox addCategoryPanel;
+    @FXML private TextField newCategoryField;
     @FXML private TextField priceField;
     @FXML private TextField stockField;
     @FXML private ComboBox<String> gstComboBox;
@@ -29,16 +39,21 @@ public class ProductsController {
     @FXML private Button updateButton;
     @FXML private Button deleteButton;
     @FXML private Button clearButton;
+    @FXML private ProgressIndicator savingIndicator;
 
-    // Labels shown in the dropdown, in order. "GST Exempt" maps to 0.0.
     private static final String GST_EXEMPT_LABEL = "GST Exempt";
     private static final ObservableList<String> GST_OPTIONS = FXCollections.observableArrayList(
         GST_EXEMPT_LABEL, "5%", "12%", "18%", "20%"
     );
 
-    private static final ObservableList<String> CATEGORY_OPTIONS = FXCollections.observableArrayList(
+    // Starting defaults - always shown even before any category has been
+    // explicitly created for this location.
+    private static final List<String> DEFAULT_CATEGORIES = List.of(
         "Beverages", "Snacks", "Pastries", "Combo", "Others"
     );
+
+    private final ObservableList<String> categoryOptions = FXCollections.observableArrayList();
+    private FilteredList<String> filteredCategoryOptions;
 
     private final ObservableList<Product> products = FXCollections.observableArrayList();
     private Product selectedProduct = null;
@@ -59,7 +74,10 @@ public class ProductsController {
         gstComboBox.setItems(GST_OPTIONS);
         gstComboBox.getSelectionModel().select(GST_EXEMPT_LABEL);
 
-        categoryField.setItems(CATEGORY_OPTIONS);
+        filteredCategoryOptions = new FilteredList<>(categoryOptions, s -> true);
+        categoryField.setItems(filteredCategoryOptions);
+        setupCategorySearch();
+        refreshCategories();
 
         productsTable.setItems(products);
 
@@ -77,29 +95,137 @@ public class ProductsController {
         loadProducts();
     }
 
+    /**
+     * Search-as-you-type behavior for the Category ComboBox: typing narrows
+     * the dropdown while always preserving exactly what the user typed, so a
+     * brand-new category name is never silently discarded.
+     */
+    private void setupCategorySearch() {
+        TextField editor = categoryField.getEditor();
+
+        editor.textProperty().addListener((obs, oldText, newText) -> {
+            String selected = categoryField.getSelectionModel().getSelectedItem();
+            if (selected != null && selected.equals(newText)) {
+                return;
+            }
+
+            if (newText == null || newText.isEmpty()) {
+                filteredCategoryOptions.setPredicate(s -> true);
+            } else {
+                String lower = newText.toLowerCase();
+                filteredCategoryOptions.setPredicate(s -> s.toLowerCase().contains(lower));
+            }
+
+            editor.setText(newText);
+            editor.positionCaret(newText == null ? 0 : newText.length());
+
+            if (!categoryField.isShowing() && editor.isFocused()) {
+                categoryField.show();
+            }
+        });
+
+        categoryField.setOnShowing(e -> {
+            String current = editor.getText();
+            if (current == null || current.isEmpty()) {
+                filteredCategoryOptions.setPredicate(s -> true);
+            }
+        });
+    }
+
+    /**
+     * Rebuilds the Category master list from defaults + explicitly created
+     * categories (categories table) + anything already used by products.
+     */
+    private void refreshCategories() {
+        Set<String> merged = new LinkedHashSet<>(DEFAULT_CATEGORIES);
+        merged.addAll(CategoryDAO.getAllCategoryNames(currentLocationId()));
+        categoryOptions.setAll(merged);
+    }
+
+    @FXML
+    private void onToggleAddCategory() {
+        boolean showing = addCategoryPanel.isVisible();
+        addCategoryPanel.setVisible(!showing);
+        addCategoryPanel.setManaged(!showing);
+        if (!showing) {
+            newCategoryField.clear();
+            newCategoryField.requestFocus();
+        }
+    }
+
+    @FXML
+    private void onSaveNewCategory() {
+        String name = newCategoryField.getText() == null ? "" : newCategoryField.getText().trim();
+        if (name.isEmpty()) {
+            showAlert(Alert.AlertType.WARNING, "Enter a category name first.");
+            return;
+        }
+
+        boolean added = CategoryDAO.addCategory(name, currentLocationId());
+        if (!added) {
+            showAlert(Alert.AlertType.WARNING, "That category already exists (or could not be added).");
+        }
+
+        refreshCategories();
+        categoryField.setValue(name);
+        newCategoryField.clear();
+        addCategoryPanel.setVisible(false);
+        addCategoryPanel.setManaged(false);
+    }
+
+    @FXML
+    private void onCancelNewCategory() {
+        newCategoryField.clear();
+        addCategoryPanel.setVisible(false);
+        addCategoryPanel.setManaged(false);
+    }
+
     private void loadProducts() {
         products.setAll(ProductDAO.getAllProducts(currentLocationId()));
+    }
+
+    private void setBusy(boolean busy) {
+        addButton.setDisable(busy);
+        updateButton.setDisable(busy);
+        deleteButton.setDisable(busy);
+        clearButton.setDisable(busy);
+        savingIndicator.setVisible(busy);
+        savingIndicator.setManaged(busy);
     }
 
     @FXML
     private void onAddProduct() {
         if (!validateForm()) return;
 
-        boolean success = ProductDAO.addProduct(
-            nameField.getText().trim(),
-            categoryValue(),
-            Double.parseDouble(priceField.getText().trim()),
-            Integer.parseInt(stockField.getText().trim()),
-            labelToRate(gstComboBox.getValue()),
-            currentLocationId()
-        );
+        final String name = nameField.getText().trim();
+        final String category = categoryValue();
+        final double price = Double.parseDouble(priceField.getText().trim());
+        final int stock = Integer.parseInt(stockField.getText().trim());
+        final double gstRate = labelToRate(gstComboBox.getValue());
+        final int locationId = currentLocationId();
 
-        if (success) {
-            loadProducts();
-            clearForm();
-        } else {
-            showAlert(Alert.AlertType.ERROR, "Failed to add product.");
-        }
+        setBusy(true);
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return ProductDAO.addProduct(name, category, price, stock, gstRate, locationId);
+            }
+        };
+        task.setOnSucceeded(e -> {
+            setBusy(false);
+            if (task.getValue()) {
+                loadProducts();
+                refreshCategories();
+                clearForm();
+            } else {
+                showAlert(Alert.AlertType.ERROR, "Failed to add product.");
+            }
+        });
+        task.setOnFailed(e -> {
+            setBusy(false);
+            showAlert(Alert.AlertType.ERROR, "Failed to add product: " + task.getException().getMessage());
+        });
+        new Thread(task).start();
     }
 
     @FXML
@@ -110,22 +236,36 @@ public class ProductsController {
         }
         if (!validateForm()) return;
 
-        boolean success = ProductDAO.updateProduct(
-            selectedProduct.getId(),
-            nameField.getText().trim(),
-            categoryValue(),
-            Double.parseDouble(priceField.getText().trim()),
-            Integer.parseInt(stockField.getText().trim()),
-            labelToRate(gstComboBox.getValue()),
-            currentLocationId()
-        );
+        final int id = selectedProduct.getId();
+        final String name = nameField.getText().trim();
+        final String category = categoryValue();
+        final double price = Double.parseDouble(priceField.getText().trim());
+        final int stock = Integer.parseInt(stockField.getText().trim());
+        final double gstRate = labelToRate(gstComboBox.getValue());
+        final int locationId = currentLocationId();
 
-        if (success) {
-            loadProducts();
-            clearForm();
-        } else {
-            showAlert(Alert.AlertType.ERROR, "Failed to update product.");
-        }
+        setBusy(true);
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return ProductDAO.updateProduct(id, name, category, price, stock, gstRate, locationId);
+            }
+        };
+        task.setOnSucceeded(e -> {
+            setBusy(false);
+            if (task.getValue()) {
+                loadProducts();
+                refreshCategories();
+                clearForm();
+            } else {
+                showAlert(Alert.AlertType.ERROR, "Failed to update product.");
+            }
+        });
+        task.setOnFailed(e -> {
+            setBusy(false);
+            showAlert(Alert.AlertType.ERROR, "Failed to update product: " + task.getException().getMessage());
+        });
+        new Thread(task).start();
     }
 
     @FXML
@@ -139,9 +279,27 @@ public class ProductsController {
             "Delete \"" + selectedProduct.getName() + "\"? This cannot be undone.");
         confirm.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                ProductDAO.deleteProduct(selectedProduct.getId(), currentLocationId());
-                loadProducts();
-                clearForm();
+                final int id = selectedProduct.getId();
+                final int locationId = currentLocationId();
+
+                setBusy(true);
+                Task<Boolean> task = new Task<>() {
+                    @Override
+                    protected Boolean call() {
+                        return ProductDAO.deleteProduct(id, locationId);
+                    }
+                };
+                task.setOnSucceeded(e -> {
+                    setBusy(false);
+                    loadProducts();
+                    refreshCategories();
+                    clearForm();
+                });
+                task.setOnFailed(e -> {
+                    setBusy(false);
+                    showAlert(Alert.AlertType.ERROR, "Failed to delete product: " + task.getException().getMessage());
+                });
+                new Thread(task).start();
             }
         });
     }
@@ -160,6 +318,8 @@ public class ProductsController {
         gstComboBox.getSelectionModel().select(GST_EXEMPT_LABEL);
         selectedProduct = null;
         productsTable.getSelectionModel().clearSelection();
+        addCategoryPanel.setVisible(false);
+        addCategoryPanel.setManaged(false);
     }
 
     private boolean validateForm() {

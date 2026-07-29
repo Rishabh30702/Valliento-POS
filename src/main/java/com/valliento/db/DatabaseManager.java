@@ -111,7 +111,7 @@ public class DatabaseManager {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 invoice_no VARCHAR(100) NOT NULL,
                 total DOUBLE NOT NULL,
-               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         """;
 
@@ -189,6 +189,19 @@ public class DatabaseManager {
             ) ENGINE=InnoDB
         """;
 
+        // New: standalone categories table so a category can be created on its
+        // own (via the "+" control on the Products screen) without needing a
+        // product to already reference it. Unique per location so two
+        // different businesses/locations can each have their own "Softy" etc.
+        String createCategories = """
+            CREATE TABLE IF NOT EXISTS categories (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                location_id INT DEFAULT 1,
+                UNIQUE KEY uniq_category_per_location (name, location_id)
+            ) ENGINE=InnoDB
+        """;
+
         try (Statement stmt = getConnection().createStatement()) {
             stmt.execute(createLocations);
             stmt.execute(createProducts);
@@ -260,6 +273,7 @@ public class DatabaseManager {
             stmt.execute(createSuppliers);
             stmt.execute(createExpenses);
             stmt.execute(createEmployees);
+            stmt.execute(createCategories);
 
             seedDefaultLocation();
             seedTablesIfEmpty();

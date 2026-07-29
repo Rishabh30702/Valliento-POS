@@ -4,7 +4,9 @@ import com.valliento.model.Product;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ProductDAO {
 
@@ -31,8 +33,30 @@ public class ProductDAO {
         return products;
     }
 
+    /**
+     * Distinct categories currently in use for this location, so the Category
+     * dropdown on the Products screen stays dynamic: any category a manager
+     * types while adding/editing a product automatically becomes a selectable
+     * option for everyone afterward, no separate "manage categories" screen needed.
+     */
+    public static List<String> getAllCategories(int locationId) {
+        Set<String> categories = new LinkedHashSet<>();
+        String sql = "SELECT DISTINCT category FROM products WHERE location_id = ? AND category IS NOT NULL AND TRIM(category) != '' ORDER BY category";
+        try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+            ps.setInt(1, locationId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    categories.add(rs.getString("category"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new ArrayList<>(categories);
+    }
+
     public static int getTotalProductCount(int locationId) {
-        String sql = "SELECT COUNT(*) FROM products WHERE location_id = ?";
+        String sql = "SELECT COUNT(*) FROM products WHERE location_id= ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setInt(1, locationId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -44,7 +68,7 @@ public class ProductDAO {
         return 0;
     }
 
-    public static int getLowStockCount(int threshold, int locationId) {
+    public static int getLowStockCount(int threshold, int locationId){
         String sql = "SELECT COUNT(*) FROM products WHERE stock < ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setInt(1, threshold);

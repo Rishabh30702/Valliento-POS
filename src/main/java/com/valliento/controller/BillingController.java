@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -50,6 +51,12 @@ public class BillingController {
 
     @FXML private CheckBox interStateCheckBox;
     @FXML private ComboBox<String> paymentMethodComboBox;
+
+    @FXML private Button holdButton;
+    @FXML private Button saveButton;
+    @FXML private Button payButton;
+    @FXML private Button sendToKitchenButton;
+    @FXML private ProgressIndicator billingSpinner;
 
     private static final ObservableList<String> PAYMENT_METHODS =
         FXCollections.observableArrayList("---", "Cash", "Card", "UPI");
@@ -94,6 +101,15 @@ public class BillingController {
 
     private int currentLocationId() {
         return Session.getCurrentUser() != null ? Session.getCurrentUser().getLocationId() : com.valliento.db.DatabaseManager.DEFAULT_LOCATION_ID;
+    }
+
+    private void setBusy(boolean busy) {
+        holdButton.setDisable(busy);
+        saveButton.setDisable(busy);
+        payButton.setDisable(busy);
+        sendToKitchenButton.setDisable(busy);
+        billingSpinner.setVisible(busy);
+        billingSpinner.setManaged(busy);
     }
 
     private boolean isInterState() {
@@ -238,41 +254,53 @@ public class BillingController {
             return;
         }
 
-        RestaurantTable selectedTable = tableComboBox.getValue();
-        Integer tableId = selectedTable != null ? selectedTable.getId() : null;
-        String tableNo = selectedTable != null ? selectedTable.getTableNo() : "Takeaway";
+        final RestaurantTable selectedTable = tableComboBox.getValue();
+        final Integer tableId = selectedTable != null ? selectedTable.getId() : null;
+        final String tableNo = selectedTable != null ? selectedTable.getTableNo() : "Takeaway";
+        final Integer finalCurrentKotId = currentKotId;
 
-        Map<String, Integer> items = new HashMap<>();
+        final Map<String, Integer> items = new HashMap<>();
         for (CartItem item : cartItems) {
             items.put(item.getName(), item.getQty());
         }
 
-        if (currentKotId != null) {
-            boolean updated = KotDAO.replaceItemsForKot(currentKotId, items);
-            if (!updated) {
-                Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to update kitchen order.");
-                alert.showAndWait();
-                return;
+        setBusy(true);
+        Task<Integer> task = new Task<>() {
+            @Override
+            protected Integer call() {
+                int resultKotId;
+                if (finalCurrentKotId != null) {
+                    boolean updated = KotDAO.replaceItemsForKot(finalCurrentKotId, items);
+                    resultKotId = updated ? finalCurrentKotId : -1;
+                } else {
+                    resultKotId = KotDAO.createKot(tableId, tableNo, items);
+                }
+                if (resultKotId != -1 && selectedTable != null) {
+                    TableDAO.updateTableStatus(selectedTable.getId(), "Occupied");
+                }
+                return resultKotId;
             }
-        } else {
-            int kotId = KotDAO.createKot(tableId, tableNo, items);
-            if (kotId == -1) {
+        };
+        task.setOnSucceeded(e -> {
+            setBusy(false);
+            int resultKotId = task.getValue();
+            if (resultKotId == -1) {
                 Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to send order to kitchen.");
                 alert.showAndWait();
                 return;
             }
-            currentKotId = kotId;
-        }
-
-        if (selectedTable != null) {
-            TableDAO.updateTableStatus(selectedTable.getId(), "Occupied");
-        }
-
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, "Order sent to kitchen for " + tableNo + ".");
-        alert.setHeaderText(null);
-        alert.showAndWait();
-
-        loadTables();
+            currentKotId = resultKotId;
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, "Order sent to kitchen for " + tableNo + ".");
+            alert.setHeaderText(null);
+            alert.showAndWait();
+            loadTables();
+        });
+        task.setOnFailed(e -> {
+            setBusy(false);
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to send order to kitchen: " + task.getException().getMessage());
+            alert.showAndWait();
+        });
+        new Thread(task).start();
     }
 
     @FXML
@@ -297,12 +325,12 @@ public class BillingController {
             return;
         }
 
-        double subTotal = cartItems.stream().mapToDouble(CartItem::getTotal).sum();
-        double tax = cartItems.stream().mapToDouble(CartItem::getGstAmount).sum();
-        double grandTotal = subTotal + tax;
-        boolean interState = isInterState();
-        String paymentMethod = selectedPaymentMethod();
-        String invoiceNo = SaleDAO.generateNextInvoiceNo();
+        final double subTotal = cartItems.stream().mapToDouble(CartItem::getTotal).sum();
+        final double tax = cartItems.stream().mapToDouble(CartItem::getGstAmount).sum();
+        final double grandTotal = subTotal + tax;
+        final boolean interState = isInterState();
+        final String paymentMethod = selectedPaymentMethod();
+        final String invoiceNo = SaleDAO.generateNextInvoiceNo();
 
         if ("UPI".equals(paymentMethod)) {
             boolean confirmed = showUpiQrDialog(invoiceNo, grandTotal);
@@ -311,33 +339,48 @@ public class BillingController {
             }
         }
 
-        String cashierName = Session.getCurrentUser() != null ? Session.getCurrentUser().getFullName() : "Unknown";
+        final String cashierName = Session.getCurrentUser() != null ? Session.getCurrentUser().getFullName() : "Unknown";
+        final List<CartItem> itemsSnapshot = List.copyOf(cartItems);
+        final RestaurantTable selectedTable = tableComboBox.getValue();
+        final Integer finalCurrentKotId = currentKotId;
 
-        SaleDAO.recordSale(invoiceNo, grandTotal, tax, cartItems, cashierName, interState, paymentMethod);
-
-        ReceiptPrinter.printReceipt(invoiceNo, cashierName, cartItems, subTotal, tax, grandTotal, interState, paymentMethod);
-
-        RestaurantTable selectedTable = tableComboBox.getValue();
-        if (selectedTable != null) {
-            TableDAO.updateTableStatus(selectedTable.getId(), "Available");
-        }
-        if (currentKotId != null) {
-            KotDAO.updateKotStatus(currentKotId, "Served");
-        }
-
-        cartItems.clear();
-        currentKotId = null;
-        suppressTableSelectionHandling = true;
-        tableComboBox.setValue(null);
-        suppressTableSelectionHandling = false;
-        if (interStateCheckBox != null) {
-            interStateCheckBox.setSelected(false);
-        }
-        if (paymentMethodComboBox != null) {
-            paymentMethodComboBox.getSelectionModel().select("---");
-        }
-        updateTotals();
-        loadTables();
+        setBusy(true);
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() {
+                SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, interState, paymentMethod);
+                ReceiptPrinter.printReceipt(invoiceNo, cashierName, itemsSnapshot, subTotal, tax, grandTotal, interState, paymentMethod);
+                if (selectedTable != null) {
+                    TableDAO.updateTableStatus(selectedTable.getId(), "Available");
+                }
+                if (finalCurrentKotId != null) {
+                    KotDAO.updateKotStatus(finalCurrentKotId, "Served");
+                }
+                return null;
+            }
+        };
+        task.setOnSucceeded(e -> {
+            setBusy(false);
+            cartItems.clear();
+            currentKotId = null;
+            suppressTableSelectionHandling = true;
+            tableComboBox.setValue(null);
+            suppressTableSelectionHandling = false;
+            if (interStateCheckBox != null) {
+                interStateCheckBox.setSelected(false);
+            }
+            if (paymentMethodComboBox != null) {
+                paymentMethodComboBox.getSelectionModel().select("---");
+            }
+            updateTotals();
+            loadTables();
+        });
+        task.setOnFailed(e -> {
+            setBusy(false);
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Payment failed: " + task.getException().getMessage());
+            alert.showAndWait();
+        });
+        new Thread(task).start();
     }
 
     private boolean showUpiQrDialog(String invoiceNo, double amount) {

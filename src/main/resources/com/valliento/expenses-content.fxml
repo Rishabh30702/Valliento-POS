@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
@@ -14,9 +15,23 @@
         <Insets top="20" right="20" bottom="20" left="20" />
     </padding>
 
-    <VBox styleClass="stat-card" spacing="6" maxWidth="260">
-        <Label styleClass="stat-title" text="Today's Total" />
-        <Label fx:id="todaysTotalLabel" styleClass="stat-value" style="-fx-font-size: 18px;" text="Today's Expenses: ₹0.00" />
+    <HBox spacing="15" alignment="CENTER_LEFT">
+        <VBox styleClass="stat-card" spacing="6" maxWidth="260">
+            <Label styleClass="stat-title" text="Today's Total" />
+            <Label fx:id="todaysTotalLabel" styleClass="stat-value" style="-fx-font-size: 18px;" text="Today's Expenses: ₹0.00" />
+        </VBox>
+    </HBox>
+
+    <VBox spacing="10" styleClass="section-card">
+        <Label styleClass="section-title" text="Filter Expenses" />
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Label text="From:" />
+            <DatePicker fx:id="fromDatePicker" />
+            <Label text="To:" />
+            <DatePicker fx:id="toDatePicker" />
+            <Button styleClass="btn-save" text="Filter" onAction="#onFilter" />
+            <Button styleClass="category-btn" text="Export Excel" onAction="#onExportExcel" />
+        </HBox>
     </VBox>
 
     <HBox spacing="15" VBox.vgrow="ALWAYS">
@@ -33,7 +48,8 @@
         </VBox>
 
         <VBox spacing="12" styleClass="section-card" prefWidth="280">
-            <Label styleClass="section-title" text="Add Expense" />
+            <Label styleClass="section-title" text="Add / Edit Expense" />
+            <Label text="Select a row to edit, or fill in blank fields to add new." wrapText="true" style="-fx-font-size: 11px; -fx-text-fill: #888888;" />
 
             <VBox spacing="4">
                 <Label text="Expense Type" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
@@ -50,9 +66,12 @@
 
             <HBox spacing="8">
                 <Button styleClass="btn-save" text="Add" onAction="#onAddExpense" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
-                <Button text="Delete" onAction="#onDeleteExpense" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button styleClass="btn-save" text="Update" onAction="#onUpdateExpense" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
             </HBox>
-            <Button text="Clear" onAction="#onClear" maxWidth="Infinity" />
+            <HBox spacing="8">
+                <Button text="Delete" onAction="#onDeleteExpense" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                <Button text="Clear" onAction="#onClear" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+            </HBox>
         </VBox>
     </HBox>
 </VBox>

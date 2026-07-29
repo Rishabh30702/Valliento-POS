@@ -3,20 +3,19 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.DatePicker?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.RadioButton?>
 <?import javafx.scene.control.TableColumn?>
 <?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.ToggleGroup?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
-
 <VBox spacing="15" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.valliento.controller.ReportsController">
     <padding>
         <Insets top="20" right="20" bottom="20" left="20" />
     </padding>
-
     <VBox spacing="10" styleClass="section-card">
         <Label styleClass="section-title" text="Sales Report" />
-
         <HBox spacing="10" alignment="CENTER_LEFT">
             <Label text="From:" />
             <DatePicker fx:id="fromDatePicker" />
@@ -26,8 +25,16 @@
             <Button styleClass="category-btn" text="Export Excel" onAction="#onExportExcel" />
             <Button styleClass="category-btn" text="Export PDF" onAction="#onExportPdf" />
         </HBox>
+        <HBox spacing="15" alignment="CENTER_LEFT">
+            <Label text="View:" style="-fx-font-weight: bold;" />
+            <RadioButton fx:id="invoiceWiseRadio" text="Invoice-wise" selected="true" onAction="#onViewModeChanged">
+                <toggleGroup>
+                    <ToggleGroup fx:id="reportViewGroup" />
+                </toggleGroup>
+            </RadioButton>
+            <RadioButton fx:id="itemWiseRadio" text="Item-wise (with GST)" toggleGroup="$reportViewGroup" onAction="#onViewModeChanged" />
+        </HBox>
     </VBox>
-
     <VBox spacing="10" styleClass="section-card" VBox.vgrow="ALWAYS">
         <TableView fx:id="reportTable" VBox.vgrow="ALWAYS">
             <columns>
@@ -36,6 +43,19 @@
                 <TableColumn fx:id="shiftColumn" text="Shift" prefWidth="80" />
                 <TableColumn fx:id="totalColumn" text="Total (₹)" prefWidth="100" />
                 <TableColumn fx:id="dateColumn" text="Date / Time" prefWidth="180" />
+            </columns>
+        </TableView>
+        <TableView fx:id="itemReportTable" VBox.vgrow="ALWAYS" visible="false" managed="false">
+            <columns>
+                <TableColumn fx:id="itemInvoiceColumn" text="Invoice No" prefWidth="110" />
+                <TableColumn fx:id="itemProductColumn" text="Product" prefWidth="150" />
+                <TableColumn fx:id="itemQtyColumn" text="Qty" prefWidth="50" />
+                <TableColumn fx:id="itemPriceColumn" text="Price (₹)" prefWidth="90" />
+                <TableColumn fx:id="itemLineTotalColumn" text="Line Total (₹)" prefWidth="100" />
+                <TableColumn fx:id="itemGstRateColumn" text="GST %" prefWidth="70" />
+                <TableColumn fx:id="itemCgstColumn" text="CGST (₹)" prefWidth="90" />
+                <TableColumn fx:id="itemSgstColumn" text="SGST (₹)" prefWidth="90" />
+                <TableColumn fx:id="itemIgstColumn" text="IGST (₹)" prefWidth="90" />
             </columns>
         </TableView>
         <HBox alignment="CENTER_RIGHT">
