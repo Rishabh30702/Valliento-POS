@@ -27,7 +27,10 @@ public class SaleDAO {
             result.put(ym.format(java.time.format.DateTimeFormatter.ofPattern("MMM yy")), 0.0);
         }
 
-        String sql = "SELECT strftime('%Y-%m', created_at) AS month, SUM(total) AS total " +
+        // MySQL: DATE_FORMAT(...) replaces SQLite's strftime(...). Both produce
+        // the same "YYYY-MM" string here, so the parsing logic below (YearMonth.parse)
+        // needs no changes.
+        String sql = "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, SUM(total) AS total " +
                      "FROM sales WHERE location_id = ? GROUP BY month ORDER BY month";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setInt(1, locationId);
@@ -93,9 +96,6 @@ public class SaleDAO {
         String saleType = isInterState ? "Inter-State" : "Intra-State";
         String payMethod = (paymentMethod == null || paymentMethod.isBlank()) ? "Cash" : paymentMethod;
 
-        // Use the app's own clock instead of the DB server's NOW(), so "today"
-        // always matches the machine running the POS regardless of which
-        // timezone the MySQL host happens to be running in.
         String createdAt = DatabaseManager.nowLocal();
 
         String insertSale = "INSERT INTO sales " +
@@ -164,8 +164,6 @@ public class SaleDAO {
     }
 
     public static double getTodaysSalesTotal(int locationId) {
-        // Compare against the app's own "today" (LocalDate.now()) rather than
-        // the DB server's CURDATE(), which may be on a different clock/timezone.
         String sql = "SELECT COALESCE(SUM(total), 0) FROM sales WHERE DATE(created_at) = ? AND location_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, LocalDate.now().toString());

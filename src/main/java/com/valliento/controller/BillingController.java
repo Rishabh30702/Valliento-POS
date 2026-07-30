@@ -348,8 +348,12 @@ public class BillingController {
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() {
-SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, interState, paymentMethod, currentLocationId());
-                ReceiptPrinter.printReceipt(invoiceNo, cashierName, itemsSnapshot, subTotal, tax, grandTotal, interState, paymentMethod);
+                // Only pure DB/background work belongs here. UI work (printing,
+                // dialogs, scene graph nodes) must NEVER run inside Task.call() -
+                // it executes on a plain background Thread, not the FX Application
+                // Thread, and JavaFX throws "Not on FX application thread" if you
+                // try to touch UI from here. See setOnSucceeded below for the fix.
+                SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, interState, paymentMethod, currentLocationId());
                 if (selectedTable != null) {
                     TableDAO.updateTableStatus(selectedTable.getId(), "Available");
                 }
@@ -361,6 +365,13 @@ SaleDAO.recordSale(invoiceNo, grandTotal, tax, itemsSnapshot, cashierName, inter
         };
         task.setOnSucceeded(e -> {
             setBusy(false);
+
+            // setOnSucceeded runs back on the FX Application Thread automatically,
+            // so this is the correct place for ReceiptPrinter (which opens a print
+            // dialog and builds JavaFX Scene/Text/VBox nodes) to run - NOT inside
+            // Task.call() above.
+            ReceiptPrinter.printReceipt(invoiceNo, cashierName, itemsSnapshot, subTotal, tax, grandTotal, interState, paymentMethod);
+
             cartItems.clear();
             currentKotId = null;
             suppressTableSelectionHandling = true;
