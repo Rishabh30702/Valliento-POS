@@ -27,6 +27,7 @@ public class MainController {
     @FXML private Button navInventory;
     @FXML private Button navDailyClosing;
     @FXML private Button navTableManagement;
+    @FXML private Button navRoomManagement;
     @FXML private Button navKot;
     @FXML private Button navPurchase;
     @FXML private Button navCustomers;
@@ -39,7 +40,6 @@ public class MainController {
     @FXML private StackPane contentStack;
     @FXML private VBox loadingOverlay;
 
-    /** module key -> nav button / fxml file */
     private Map<String, Button> moduleButtons;
     private Map<String, String> moduleFxml;
 
@@ -52,6 +52,7 @@ public class MainController {
         moduleButtons.put("inventory", navInventory);
         moduleButtons.put("purchase", navPurchase);
         moduleButtons.put("tableManagement", navTableManagement);
+        moduleButtons.put("roomManagement", navRoomManagement);
         moduleButtons.put("kot", navKot);
         moduleButtons.put("customers", navCustomers);
         moduleButtons.put("suppliers", navSuppliers);
@@ -68,6 +69,7 @@ public class MainController {
         moduleFxml.put("inventory", "inventory-content.fxml");
         moduleFxml.put("purchase", "purchase-content.fxml");
         moduleFxml.put("tableManagement", "table-content.fxml");
+        moduleFxml.put("roomManagement", "room-content.fxml");
         moduleFxml.put("kot", "kot-content.fxml");
         moduleFxml.put("customers", "customers-content.fxml");
         moduleFxml.put("suppliers", "suppliers-content.fxml");
@@ -83,7 +85,6 @@ public class MainController {
             loggedInUserLabel.setText(Session.getCurrentUser().getFullName() + " (" + role + ")");
         }
 
-        // Hide sidebar items this role isn't allowed to open
         for (Map.Entry<String, Button> entry : moduleButtons.entrySet()) {
             boolean allowed = RolePermissions.canAccess(role, entry.getKey());
             Button btn = entry.getValue();
@@ -91,7 +92,6 @@ public class MainController {
             btn.setManaged(allowed);
         }
 
-        // Land on the module appropriate for this role instead of always Billing
         String defaultModule = RolePermissions.defaultModule(role);
         if (!RolePermissions.canAccess(role, defaultModule)) {
             defaultModule = moduleButtons.keySet().stream()
@@ -132,6 +132,11 @@ public class MainController {
     @FXML
     private void onNavTableManagement() {
         openModule("tableManagement");
+    }
+
+    @FXML
+    private void onNavRoomManagement() {
+        openModule("roomManagement");
     }
 
     @FXML
@@ -187,7 +192,6 @@ public class MainController {
         }
     }
 
-    /** Loads the module's screen into the center pane and updates the active sidebar highlight. */
     private void openModule(String moduleKey) {
         String role = Session.getCurrentUser() != null ? Session.getCurrentUser().getRole() : null;
         if (!RolePermissions.canAccess(role, moduleKey)) {
@@ -207,11 +211,6 @@ public class MainController {
         loadingOverlay.setVisible(true);
         loadingOverlay.setManaged(true);
 
-        // Defer the actual (blocking) load to the next UI pulse so the overlay
-        // and disabled buttons have a chance to actually paint first. JavaFX
-        // does not allow building screens on a background thread, so the load
-        // itself still blocks briefly - this just guarantees visual feedback
-        // appears before that block happens instead of never appearing at all.
         Platform.runLater(() -> {
             try {
                 java.net.URL url = getClass().getResource("/com/valliento/" + fxmlFile);

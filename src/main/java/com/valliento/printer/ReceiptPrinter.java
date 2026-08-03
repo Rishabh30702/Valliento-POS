@@ -197,4 +197,4 @@ public class ReceiptPrinter {
         alert.setHeaderText(null);
         alert.showAndWait();
     }
-}
+}    

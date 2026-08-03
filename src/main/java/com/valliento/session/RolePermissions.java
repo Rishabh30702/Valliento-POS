@@ -20,10 +20,10 @@ public class RolePermissions {
     public static final String CASHIER = "Cashier";
     public static final String WAITER = "Waiter";
 
-    private static final Set<String> MANAGER_MODULES = Set.of(
+   private static final Set<String> MANAGER_MODULES = Set.of(
         "dashboard", "products", "inventory", "purchase",
         "customers", "suppliers", "expenses", "employees",
-        "reports", "dailyClosing", "settings"
+        "reports", "dailyClosing", "settings", "roomManagement"
     );
 
     private static final Set<String> CASHIER_MODULES = Set.of(
@@ -33,6 +33,16 @@ public class RolePermissions {
     private static final Set<String> WAITER_MODULES = Set.of(
         "tableManagement", "kot"
     );
+
+    /** Whether this role can add/delete tables (not just tap to cycle status). */
+    public static boolean canManageTables(String role) {
+        return ADMINISTRATOR.equalsIgnoreCase(role) || MANAGER.equalsIgnoreCase(role);
+    }
+
+    /** Whether this role can add/delete rooms (not just tap to cycle status). */
+    public static boolean canManageRooms(String role) {
+        return ADMINISTRATOR.equalsIgnoreCase(role) || MANAGER.equalsIgnoreCase(role);
+    }
 
     /** The module a role should land on right after logging in. */
     public static String defaultModule(String role) {

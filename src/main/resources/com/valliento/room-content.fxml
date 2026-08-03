@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.VBox?>
+<VBox spacing="15" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.valliento.controller.RoomController">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20" />
+    </padding>
+    <HBox alignment="CENTER_LEFT" spacing="10">
+        <Label styleClass="section-title" text="Room Management" />
+        <Region HBox.hgrow="ALWAYS" />
+        <Button fx:id="addRoomButton" text="+ Add Room" onAction="#onAddRoom" />
+    </HBox>
+    <Label text="Tap a room to cycle its status: Ready to Use to Booked (enter price) to Cleaning to Ready to Use." style="-fx-font-size: 11px; -fx-text-fill: #6b7280;" />
+    <FlowPane fx:id="roomGrid" hgap="15" vgap="15" VBox.vgrow="ALWAYS" />
+</VBox>

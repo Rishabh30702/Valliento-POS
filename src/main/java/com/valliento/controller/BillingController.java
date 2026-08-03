@@ -10,6 +10,7 @@ import com.valliento.printer.ReceiptPrinter;
 import com.valliento.printer.UpiQrGenerator;
 import com.valliento.db.KotDAO;
 import com.valliento.db.TableDAO;
+import com.valliento.db.RoomDAO;
 import com.valliento.model.KotItem;
 import com.valliento.model.KotOrder;
 import com.valliento.model.RestaurantTable;
@@ -48,6 +49,7 @@ public class BillingController {
     @FXML private Label cashierLabel;
     @FXML private FlowPane productGrid;
     @FXML private ComboBox<RestaurantTable> tableComboBox;
+    @FXML private ComboBox<RoomDAO.Room> roomComboBox;
 
     @FXML private CheckBox interStateCheckBox;
     @FXML private ComboBox<String> paymentMethodComboBox;
@@ -64,6 +66,7 @@ public class BillingController {
     private final ObservableList<CartItem> cartItems = FXCollections.observableArrayList();
 
     private Integer currentKotId = null;
+    private Integer currentRoomId = null;
     private boolean suppressTableSelectionHandling = false;
 
     @FXML
@@ -73,6 +76,30 @@ public class BillingController {
         priceColumn.setCellValueFactory(new PropertyValueFactory<>("price"));
         totalColumn.setCellValueFactory(new PropertyValueFactory<>("total"));
         cartTable.setItems(cartItems);
+
+        TableColumn<CartItem, Void> actionColumn = new TableColumn<>("");
+        actionColumn.setPrefWidth(36);
+        actionColumn.setSortable(false);
+        actionColumn.setCellFactory(col -> new TableCell<CartItem, Void>() {
+            private final Button removeBtn = new Button("\u00d7");
+            {
+                removeBtn.setStyle(
+                    "-fx-background-color: #dc2626; -fx-text-fill: white; -fx-font-weight: bold; " +
+                    "-fx-min-width: 22; -fx-min-height: 22; -fx-max-width: 22; -fx-max-height: 22; " +
+                    "-fx-background-radius: 11; -fx-padding: 0; -fx-cursor: hand;"
+                );
+                removeBtn.setOnAction(e -> {
+                    CartItem item = getTableView().getItems().get(getIndex());
+                    removeFromCart(item);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : removeBtn);
+            }
+        });
+        cartTable.getColumns().add(actionColumn);
 
         if (Session.getCurrentUser() != null) {
             cashierLabel.setText("Cashier: " + Session.getCurrentUser().getFullName());
@@ -97,6 +124,11 @@ public class BillingController {
             if (suppressTableSelectionHandling) return;
             handleTableSelection(oldTable, newTable);
         });
+
+        if (roomComboBox != null) {
+            loadRooms();
+            roomComboBox.valueProperty().addListener((obs, oldRoom, newRoom) -> handleRoomSelection(oldRoom, newRoom));
+        }
     }
 
     private int currentLocationId() {
@@ -157,6 +189,11 @@ public class BillingController {
         updateTotals();
     }
 
+    private void removeFromCart(CartItem item) {
+        cartItems.remove(item);
+        updateTotals();
+    }
+
     private void updateTotals() {
         double subTotal = cartItems.stream().mapToDouble(CartItem::getTotal).sum();
         double tax = cartItems.stream().mapToDouble(CartItem::getGstAmount).sum();
@@ -183,7 +220,7 @@ public class BillingController {
     private void loadTables() {
         RestaurantTable previousSelection = tableComboBox.getValue();
         suppressTableSelectionHandling = true;
-        tableComboBox.getItems().setAll(TableDAO.getAllTables());
+       tableComboBox.getItems().setAll(TableDAO.getAllTables(currentLocationId()));
         tableComboBox.setConverter(new javafx.util.StringConverter<RestaurantTable>() {
             @Override
             public String toString(RestaurantTable t) {
@@ -203,6 +240,50 @@ public class BillingController {
             }
         }
         suppressTableSelectionHandling = false;
+    }
+
+    private void loadRooms() {
+        if (roomComboBox == null) return;
+        RoomDAO.Room previousSelection = roomComboBox.getValue();
+        List<RoomDAO.Room> bookedRooms = new java.util.ArrayList<>();
+        for (RoomDAO.Room r : RoomDAO.getAllRooms(currentLocationId())) {
+            if (RoomDAO.STATUS_BOOKED.equals(r.status)) {
+                bookedRooms.add(r);
+            }
+        }
+        roomComboBox.getItems().setAll(bookedRooms);
+        roomComboBox.setConverter(new javafx.util.StringConverter<RoomDAO.Room>() {
+            @Override
+            public String toString(RoomDAO.Room r) {
+                return r == null ? "No Room" : r.roomNo + " (\u20B9" + String.format("%.2f", r.price) + ")";
+            }
+            @Override
+            public RoomDAO.Room fromString(String s) {
+                return null;
+            }
+        });
+        if (previousSelection != null) {
+            for (RoomDAO.Room r : roomComboBox.getItems()) {
+                if (r.id == previousSelection.id) {
+                    roomComboBox.setValue(r);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void handleRoomSelection(RoomDAO.Room oldRoom, RoomDAO.Room newRoom) {
+        if (oldRoom != null) {
+            final String oldItemName = "Room " + oldRoom.roomNo;
+            cartItems.removeIf(item -> item.getName().equals(oldItemName));
+        }
+        if (newRoom != null && newRoom.price != null) {
+            cartItems.add(new CartItem("Room " + newRoom.roomNo, 1, newRoom.price, 0.0));
+            currentRoomId = newRoom.id;
+        } else {
+            currentRoomId = null;
+        }
+        updateTotals();
     }
 
     private void handleTableSelection(RestaurantTable oldTable, RestaurantTable newTable) {
@@ -258,6 +339,7 @@ public class BillingController {
         final Integer tableId = selectedTable != null ? selectedTable.getId() : null;
         final String tableNo = selectedTable != null ? selectedTable.getTableNo() : "Takeaway";
         final Integer finalCurrentKotId = currentKotId;
+        final Integer finalCurrentRoomId = currentRoomId;
 
         final Map<String, Integer> items = new HashMap<>();
         for (CartItem item : cartItems) {
@@ -343,6 +425,7 @@ public class BillingController {
         final List<CartItem> itemsSnapshot = List.copyOf(cartItems);
         final RestaurantTable selectedTable = tableComboBox.getValue();
         final Integer finalCurrentKotId = currentKotId;
+        final Integer finalCurrentRoomId = currentRoomId;
 
         setBusy(true);
         Task<Void> task = new Task<>() {
@@ -360,6 +443,9 @@ public class BillingController {
                 if (finalCurrentKotId != null) {
                     KotDAO.updateKotStatus(finalCurrentKotId, "Served");
                 }
+                if (finalCurrentRoomId != null) {
+                    RoomDAO.updateRoomStatus(finalCurrentRoomId, RoomDAO.STATUS_READY);
+                }
                 return null;
             }
         };
@@ -374,9 +460,13 @@ public class BillingController {
 
             cartItems.clear();
             currentKotId = null;
+            currentRoomId = null;
             suppressTableSelectionHandling = true;
             tableComboBox.setValue(null);
             suppressTableSelectionHandling = false;
+            if (roomComboBox != null) {
+                roomComboBox.setValue(null);
+            }
             if (interStateCheckBox != null) {
                 interStateCheckBox.setSelected(false);
             }
@@ -385,6 +475,7 @@ public class BillingController {
             }
             updateTotals();
             loadTables();
+            loadRooms();
         });
         task.setOnFailed(e -> {
             setBusy(false);

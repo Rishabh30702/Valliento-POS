@@ -48,6 +48,11 @@
         </HBox>
 
         <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="Room:" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
+            <ComboBox fx:id="roomComboBox" promptText="No Room" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+        </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="Payment:" style="-fx-font-size: 12px; -fx-font-weight: bold;" />
             <ComboBox fx:id="paymentMethodComboBox" promptText="Payment Method" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
         </HBox>

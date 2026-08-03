@@ -38,7 +38,8 @@
             <Button fx:id="navProducts" styleClass="nav-btn" text="Products" onAction="#onNavProducts" maxWidth="Infinity" />
             <Button fx:id="navInventory" styleClass="nav-btn" text="Inventory" onAction="#onNavInventory" maxWidth="Infinity" />
             <Button fx:id="navPurchase" styleClass="nav-btn" text="Purchase" onAction="#onNavPurchase" maxWidth="Infinity" />
-            <Button fx:id="navTableManagement" styleClass="nav-btn" text="Table Management" onAction="#onNavTableManagement" maxWidth="Infinity" />
+            <Button fx:id="navTableManagement" styleClass="nav-btn" text="TableManagement" onAction="#onNavTableManagement" maxWidth="Infinity" />
+            <Button fx:id="navRoomManagement" styleClass="nav-btn" text="Room Management" onAction="#onNavRoomManagement" maxWidth="Infinity" />
             <Button fx:id="navKot" styleClass="nav-btn" text="KOT" onAction="#onNavKot" maxWidth="Infinity" />
             <Button fx:id="navCustomers" styleClass="nav-btn" text="Customers" onAction="#onNavCustomers" maxWidth="Infinity" />
             <Button fx:id="navSuppliers" styleClass="nav-btn" text="Suppliers" onAction="#onNavSuppliers" maxWidth="Infinity" />
