@@ -26,9 +26,9 @@ public class RolePermissions {
         "reports", "dailyClosing", "settings", "roomManagement"
     );
 
-    private static final Set<String> CASHIER_MODULES = Set.of(
-        "dashboard", "billing", "customers", "dailyClosing"
-    );
+  private static final Set<String> CASHIER_MODULES = Set.of(
+    "dashboard", "billing", "customers", "dailyClosing", "roomManagement"
+);
 
     private static final Set<String> WAITER_MODULES = Set.of(
         "tableManagement", "kot"

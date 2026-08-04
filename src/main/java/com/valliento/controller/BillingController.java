@@ -58,6 +58,7 @@ public class BillingController {
     @FXML private Button saveButton;
     @FXML private Button payButton;
     @FXML private Button sendToKitchenButton;
+    @FXML private Button refreshButton;
     @FXML private ProgressIndicator billingSpinner;
 
     private static final ObservableList<String> PAYMENT_METHODS =
@@ -140,6 +141,9 @@ public class BillingController {
         saveButton.setDisable(busy);
         payButton.setDisable(busy);
         sendToKitchenButton.setDisable(busy);
+        if (refreshButton != null) {
+            refreshButton.setDisable(busy);
+        }
         billingSpinner.setVisible(busy);
         billingSpinner.setManaged(busy);
     }
@@ -399,6 +403,55 @@ public class BillingController {
         alert.showAndWait();
     }
 
+    /**
+     * Clears the billing screen back to its default state: empty cart, no
+     * table/room selected, payment method reset, inter-state checkbox off,
+     * and re-pulls tables/rooms/products from the database so the screen
+     * reflects current data.
+     */
+    private void resetForm() {
+        cartItems.clear();
+        currentKotId = null;
+        currentRoomId = null;
+        suppressTableSelectionHandling = true;
+        tableComboBox.setValue(null);
+        suppressTableSelectionHandling = false;
+        if (roomComboBox != null) {
+            roomComboBox.setValue(null);
+        }
+        if (interStateCheckBox != null) {
+            interStateCheckBox.setSelected(false);
+        }
+        if (paymentMethodComboBox != null) {
+            paymentMethodComboBox.getSelectionModel().select("---");
+        }
+        updateTotals();
+        loadTables();
+        loadRooms();
+        loadProductsFromDatabase();
+    }
+
+    /**
+     * Manual "Refresh" action. Confirms first if there's unsent/unpaid work
+     * in the cart so a cashier can't lose an in-progress order by accident;
+     * otherwise clears and reloads immediately.
+     */
+    @FXML
+    private void onRefresh() {
+        boolean hasUnsentWork = !cartItems.isEmpty() && currentKotId == null;
+        if (hasUnsentWork) {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "You have items in the cart that haven't been sent to the kitchen or paid. Clear everything?",
+                ButtonType.YES, ButtonType.NO);
+            confirm.setHeaderText(null);
+            Optional<ButtonType> result = confirm.showAndWait();
+            if (result.isEmpty() || result.get() != ButtonType.YES) {
+                return;
+            }
+        }
+        resetForm();
+    }
+
     @FXML
     private void onPayAndPrint() {
         if (cartItems.isEmpty()) {
@@ -458,24 +511,7 @@ public class BillingController {
             // Task.call() above.
             ReceiptPrinter.printReceipt(invoiceNo, cashierName, itemsSnapshot, subTotal, tax, grandTotal, interState, paymentMethod);
 
-            cartItems.clear();
-            currentKotId = null;
-            currentRoomId = null;
-            suppressTableSelectionHandling = true;
-            tableComboBox.setValue(null);
-            suppressTableSelectionHandling = false;
-            if (roomComboBox != null) {
-                roomComboBox.setValue(null);
-            }
-            if (interStateCheckBox != null) {
-                interStateCheckBox.setSelected(false);
-            }
-            if (paymentMethodComboBox != null) {
-                paymentMethodComboBox.getSelectionModel().select("---");
-            }
-            updateTotals();
-            loadTables();
-            loadRooms();
+            resetForm();
         });
         task.setOnFailed(e -> {
             setBusy(false);
